@@ -12,4 +12,10 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
     Optional<AppUser> findByName(String name);
 
     List<AppUser> findByAdministeredTeamId(Long teamId);
+
+    List<AppUser> findByPlayingOrbatId(Long playingOrbatId);
+
+    List<AppUser> findByStandardNodeIdIsNotNull();
+
+    long countByThemeId(Long themeId);
 }

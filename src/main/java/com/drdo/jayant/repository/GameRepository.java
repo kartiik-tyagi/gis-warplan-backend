@@ -9,4 +9,6 @@ import com.drdo.jayant.domain.Game;
 public interface GameRepository extends JpaRepository<Game, Long> {
 
     List<Game> findByScenarioId(Long scenarioId);
+
+    List<Game> findByActiveTrue();
 }

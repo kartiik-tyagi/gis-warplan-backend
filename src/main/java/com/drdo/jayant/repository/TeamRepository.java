@@ -12,4 +12,6 @@ public interface TeamRepository extends JpaRepository<Team, Long> {
     Optional<Team> findByName(String name);
 
     List<Team> findByKind(String kind);
+
+    long countByThemeId(Long themeId);
 }

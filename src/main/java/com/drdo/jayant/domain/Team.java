@@ -26,6 +26,14 @@ public class Team {
     @Column(length = 500)
     private String description;
 
+    @Column(length = 20)
+    private String colour;
+
+    @Column(length = 300)
+    private String icon;
+
+    private Long themeId;
+
     @Column(nullable = false)
     private Instant createdAt;
 

@@ -28,6 +28,9 @@ public class Scenario {
 
     private Long themeId;
 
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean active;
+
     @JdbcTypeCode(SqlTypes.JSON)
     private Map<String, Object> configJson;
 

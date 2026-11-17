@@ -9,6 +9,7 @@ import org.apache.logging.log4j.ThreadContext;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.servlet.NoHandlerFoundException;
@@ -81,6 +83,18 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiError> denied(AccessDeniedException exception) {
         log.warn("Request rejected code=FORBIDDEN");
         return respond(HttpStatus.FORBIDDEN, "FORBIDDEN", "This action is not allowed.", Map.of());
+    }
+
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ApiError> stale(ObjectOptimisticLockingFailureException exception) {
+        log.warn("Request rejected code=CONFLICT reason=OptimisticLock");
+        return respond(HttpStatus.CONFLICT, "CONFLICT", "The record was changed by someone else. Reload and try again.", Map.of());
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiError> badArgument(MethodArgumentTypeMismatchException exception) {
+        log.warn("Request rejected code=BAD_REQUEST");
+        return respond(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "A request parameter is not valid.", Map.of());
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)

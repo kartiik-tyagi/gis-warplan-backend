@@ -28,6 +28,9 @@ public class Game {
     @Column(nullable = false, length = 30)
     private String status = "DRAFT";
 
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean active;
+
     @JdbcTypeCode(SqlTypes.JSON)
     private Map<String, Object> configJson;
 
