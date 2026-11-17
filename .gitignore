@@ -1,0 +1,72 @@
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Logs (runtime)
+log/
+logs/
+*.log
+
+# IDE — IntelliJ / Cursor
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# IDE — Eclipse
+.classpath
+.project
+.settings/
+.bin/
+
+# IDE — VS Code / NetBeans
+.vscode/
+nbproject/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials.json
+
+# Java / Spring runtime
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+spring-boot-devtools.restart
+
+# Test / coverage
+.jacoco/
+coverage/
+*.exec
+
+# Local icon store overrides (keep starter icons if committed under images/)
+# Runtime uploads outside the repo stay ignored via jayant.icons.root
+
+# Misc
+*.swp
+*.swo
+*~

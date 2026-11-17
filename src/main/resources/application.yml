@@ -1,0 +1,65 @@
+spring:
+  application:
+    name: jayant-backend
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/jayant}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate.dialect: org.hibernate.dialect.PostgreSQLDialect
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    listener:
+      auto-startup: false
+  mvc:
+    throw-exception-if-no-handler-found: true
+
+server:
+  port: 8091
+  servlet:
+    context-path: /
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+    include-exception: false
+
+jayant:
+  api-base-path: /api/v1
+  cors-origins:
+    - http://127.0.0.1:5173
+  db:
+    auto-create: true
+  jwt:
+    secret: ${JAYANT_JWT_SECRET:change-me}
+    expiration: 90000
+
+logging:
+  config: config/jayant.xml
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: Jayant
+    description: DRDO Jayant backend foundation
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
