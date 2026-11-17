@@ -37,6 +37,8 @@ jayant:
   jwt:
     secret: ${JAYANT_JWT_SECRET:change-me}
     expiration: 90000
+  icons:
+    root: images/icon
 
 logging:
   config: config/jayant.xml

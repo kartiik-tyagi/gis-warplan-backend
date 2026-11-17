@@ -12,6 +12,7 @@ public class JayantProperties {
     private List<String> corsOrigins = new ArrayList<>(List.of("http://127.0.0.1:5173"));
     private final Db db = new Db();
     private final Jwt jwt = new Jwt();
+    private final Icons icons = new Icons();
 
     public String getApiBasePath() {
         return apiBasePath;
@@ -35,6 +36,10 @@ public class JayantProperties {
 
     public Jwt getJwt() {
         return jwt;
+    }
+
+    public Icons getIcons() {
+        return icons;
     }
 
     public static class Db {
@@ -67,6 +72,18 @@ public class JayantProperties {
 
         public void setExpiration(long expiration) {
             this.expiration = expiration;
+        }
+    }
+
+    public static class Icons {
+        private String root = "images/icon";
+
+        public String getRoot() {
+            return root;
+        }
+
+        public void setRoot(String root) {
+            this.root = root == null || root.isBlank() ? "images/icon" : root;
         }
     }
 }

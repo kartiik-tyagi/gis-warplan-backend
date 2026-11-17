@@ -6,6 +6,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -44,12 +47,12 @@ class FoundationRunningTest {
 
     @Test
     void unknownPathAndUnexpectedFailureStaySafe() {
-        ResponseEntity<String> missing = rest.getForEntity("/api/v1/missing", String.class);
+        ResponseEntity<String> missing = rest.exchange("/api/v1/missing", HttpMethod.GET, authed(null), String.class);
         assertThat(missing.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
         assertThat(missing.getBody()).contains("NOT_FOUND");
         assertThat(missing.getBody()).contains("requestId");
 
-        ResponseEntity<String> broken = rest.getForEntity("/api/v1/foundation-check/broken", String.class);
+        ResponseEntity<String> broken = rest.exchange("/api/v1/foundation-check/broken", HttpMethod.GET, authed(null), String.class);
         assertThat(broken.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
         assertThat(broken.getBody()).contains("INTERNAL");
         assertThat(broken.getBody()).doesNotContain("secret");
@@ -59,7 +62,7 @@ class FoundationRunningTest {
     void invalidAndUnreadableBodiesAreRejected() {
         ResponseEntity<String> invalid = rest.postForEntity(
                 "/api/v1/foundation-check/names",
-                json("{\"name\":\"\"}"),
+                authed("{\"name\":\"\"}"),
                 String.class);
         assertThat(invalid.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(invalid.getBody()).contains("VALIDATION");
@@ -67,7 +70,7 @@ class FoundationRunningTest {
 
         ResponseEntity<String> unreadable = rest.postForEntity(
                 "/api/v1/foundation-check/names",
-                json("{"),
+                authed("{"),
                 String.class);
         assertThat(unreadable.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(unreadable.getBody()).contains("BAD_REQUEST");
@@ -81,9 +84,26 @@ class FoundationRunningTest {
         assertThat(encoded).doesNotContain("123");
     }
 
-    private static org.springframework.http.HttpEntity<String> json(String body) {
-        org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+    @Test
+    void protectedPathsRequireAuthentication() {
+        ResponseEntity<String> anonymous = rest.getForEntity("/api/v1/missing", String.class);
+        assertThat(anonymous.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(anonymous.getBody()).contains("UNAUTHORIZED");
+    }
+
+    private HttpEntity<String> authed(String body) {
+        HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        return new org.springframework.http.HttpEntity<>(body, headers);
+        headers.setBearerAuth(token());
+        return new HttpEntity<>(body, headers);
+    }
+
+    private String token() {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        ResponseEntity<java.util.Map> login = rest.postForEntity("/api/v1/auth/login",
+                new HttpEntity<>("{\"name\":\"APEX\",\"password\":\"123\"}", headers), java.util.Map.class);
+        assertThat(login.getStatusCode()).isEqualTo(HttpStatus.OK);
+        return (String) login.getBody().get("token");
     }
 }

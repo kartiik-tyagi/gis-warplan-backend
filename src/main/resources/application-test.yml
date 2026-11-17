@@ -19,6 +19,8 @@ spring:
 jayant:
   db:
     auto-create: false
+  icons:
+    root: target/test-icons
 
 logging:
   config: config/jayant.xml
