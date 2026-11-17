@@ -15,6 +15,7 @@ import com.drdo.jayant.repository.UserSessionRepository;
 import com.drdo.jayant.security.JwtService;
 import com.drdo.jayant.security.JwtService.IssuedToken;
 import com.drdo.jayant.security.UserPrincipal;
+import com.drdo.jayant.service.ActivationService.Activation;
 import com.drdo.jayant.web.UnauthorizedException;
 
 @Service
@@ -28,15 +29,17 @@ public class AuthService {
     private final JwtService jwtService;
     private final AccessService access;
     private final AuditService audit;
+    private final ActivationService activation;
 
     public AuthService(AppUserRepository users, UserSessionRepository sessions, PasswordEncoder passwordEncoder,
-            JwtService jwtService, AccessService access, AuditService audit) {
+            JwtService jwtService, AccessService access, AuditService audit, ActivationService activation) {
         this.users = users;
         this.sessions = sessions;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.access = access;
         this.audit = audit;
+        this.activation = activation;
     }
 
     @Transactional
@@ -87,6 +90,7 @@ public class AuthService {
     }
 
     private MeResponse me(AppUser user) {
+        Activation state = activation.evaluate(user);
         return new MeResponse(
                 user.getId(),
                 user.getName(),
@@ -97,7 +101,9 @@ public class AuthService {
                 user.getStandardOrbatId(),
                 user.getStandardNodeId(),
                 user.getPlayingOrbatId(),
-                user.getPlayingNodeId());
+                user.getPlayingNodeId(),
+                state.canWork(),
+                state.reason());
     }
 
     public record LoginResult(String token, Instant expiresAt, MeResponse me) {
@@ -113,6 +119,8 @@ public class AuthService {
             Long standardOrbatId,
             String standardNodeId,
             Long playingOrbatId,
-            String playingNodeId) {
+            String playingNodeId,
+            boolean canWork,
+            String workBlockedReason) {
     }
 }
