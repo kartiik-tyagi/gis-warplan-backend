@@ -140,9 +140,10 @@ class DomainFoundationTest {
         assertThat(upload(admin, "..%2Fx.svg", validSvg()).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(upload(admin, "notes.txt", "hi").getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 
-        ResponseEntity<String> created = upload(admin, "uploaded.svg", validSvg());
+        String unique = "uploaded-" + java.util.UUID.randomUUID().toString().substring(0, 8) + ".svg";
+        ResponseEntity<String> created = upload(admin, unique, validSvg());
         assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
-        assertThat(upload(admin, "uploaded.svg", validSvg()).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(upload(admin, unique, validSvg()).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
     private static String validSvg() {
