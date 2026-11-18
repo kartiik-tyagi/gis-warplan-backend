@@ -1,0 +1,88 @@
+{
+  "server": {
+    "code": "local",
+    "name": "Local GeoServer",
+    "wmsUrl": "http://127.0.0.1:8080/geoserver/wms",
+    "wfsUrl": null,
+    "restUrl": "http://127.0.0.1:8080/geoserver/rest",
+    "workspaceDefault": "ne",
+    "enabled": true,
+    "defaultServer": true
+  },
+  "view": {
+    "basemapSource": "wms",
+    "osmUrl": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    "centerLon": 82,
+    "centerLat": 24.5,
+    "zoom": 5,
+    "minZoom": 3,
+    "maxZoom": 12
+  },
+  "layers": [
+    {
+      "code": "countries",
+      "label": "Countries",
+      "groupName": "Base",
+      "wmsLayers": "ne:countries",
+      "format": "image/png",
+      "transparent": false,
+      "baseLayer": true,
+      "sortOrder": 10,
+      "defaultVisible": true,
+      "defaultOpacity": 1.0,
+      "attribution": "Natural Earth"
+    },
+    {
+      "code": "places",
+      "label": "Populated places",
+      "groupName": "Reference",
+      "wmsLayers": "ne:populated_places",
+      "format": "image/png",
+      "transparent": true,
+      "baseLayer": false,
+      "sortOrder": 20,
+      "defaultVisible": true,
+      "defaultOpacity": 1.0,
+      "attribution": "Natural Earth"
+    },
+    {
+      "code": "coast",
+      "label": "Coastline",
+      "groupName": "Reference",
+      "wmsLayers": "ne:coastlines",
+      "format": "image/png",
+      "transparent": true,
+      "baseLayer": false,
+      "sortOrder": 30,
+      "defaultVisible": false,
+      "defaultOpacity": 1.0,
+      "attribution": "Natural Earth"
+    },
+    {
+      "code": "boundaries",
+      "label": "Boundaries",
+      "groupName": "Reference",
+      "wmsLayers": "ne:boundary_lines",
+      "format": "image/png",
+      "transparent": true,
+      "baseLayer": false,
+      "sortOrder": 40,
+      "defaultVisible": false,
+      "defaultOpacity": 1.0,
+      "attribution": "Natural Earth"
+    },
+    {
+      "code": "disputed",
+      "label": "Disputed areas",
+      "groupName": "Reference",
+      "wmsLayers": "ne:disputed_areas",
+      "format": "image/png",
+      "transparent": true,
+      "baseLayer": false,
+      "sortOrder": 50,
+      "defaultVisible": false,
+      "defaultOpacity": 1.0,
+      "attribution": "Natural Earth"
+    }
+  ]
+}

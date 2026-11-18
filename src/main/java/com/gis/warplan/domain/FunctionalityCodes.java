@@ -9,6 +9,7 @@ import java.util.List;
 public final class FunctionalityCodes {
 
     public static final String MAP_VIEW = "MAP_VIEW";
+    public static final String MANAGE_MAP = "MANAGE_MAP";
     public static final String MANAGE_THEMES = "MANAGE_THEMES";
     public static final String MANAGE_SIDES = "MANAGE_SIDES";
     public static final String MANAGE_NODE_TYPES = "MANAGE_NODE_TYPES";
@@ -26,6 +27,7 @@ public final class FunctionalityCodes {
 
     public static final List<String> ALL = List.of(
             MAP_VIEW,
+            MANAGE_MAP,
             MANAGE_THEMES,
             MANAGE_SIDES,
             MANAGE_NODE_TYPES,
