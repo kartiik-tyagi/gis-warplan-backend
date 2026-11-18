@@ -7,7 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "alliance_member", uniqueConstraints = @UniqueConstraint(columnNames = {"allianceTeamId", "memberTeamId"}))
+@Table(name = "alliance_member", uniqueConstraints = @UniqueConstraint(columnNames = {"allianceSideId", "memberSideId"}))
 @Getter
 @Setter
 public class AllianceMember {
@@ -17,10 +17,10 @@ public class AllianceMember {
     private Long id;
 
     @Column(nullable = false)
-    private Long allianceTeamId;
+    private Long allianceSideId;
 
     @Column(nullable = false)
-    private Long memberTeamId;
+    private Long memberSideId;
 
     @Column(nullable = false)
     private Instant createdAt;

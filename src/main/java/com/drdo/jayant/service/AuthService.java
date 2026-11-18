@@ -49,9 +49,9 @@ public class AuthService {
             throw new UnauthorizedException(INVALID);
         }
         List<String> roleCodes = access.resolveRoleCodes(user);
-        List<String> featureCodes = access.resolveFeatureCodes(user);
-        UserPrincipal principal = new UserPrincipal(user.getId(), user.getName(), roleCodes, featureCodes,
-                user.getAdministeredTeamId());
+        List<String> functionalityCodes = access.resolveFunctionalityCodes(user);
+        UserPrincipal principal = new UserPrincipal(user.getId(), user.getName(), roleCodes, functionalityCodes,
+                user.getAdministeredSideId());
         IssuedToken issued = jwtService.create(principal);
 
         UserSession session = new UserSession();
@@ -95,8 +95,8 @@ public class AuthService {
                 user.getId(),
                 user.getName(),
                 access.resolveRoleCodes(user),
-                access.resolveFeatureCodes(user),
-                user.getAdministeredTeamId(),
+                access.resolveFunctionalityCodes(user),
+                user.getAdministeredSideId(),
                 access.resolveThemeId(user),
                 user.getStandardOrbatId(),
                 user.getStandardNodeId(),
@@ -113,8 +113,8 @@ public class AuthService {
             Long userId,
             String name,
             List<String> roleCodes,
-            List<String> featureCodes,
-            Long administeredTeamId,
+            List<String> functionalityCodes,
+            Long administeredSideId,
             Long themeId,
             Long standardOrbatId,
             String standardNodeId,

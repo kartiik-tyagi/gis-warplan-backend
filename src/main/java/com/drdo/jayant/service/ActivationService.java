@@ -16,7 +16,7 @@ import com.drdo.jayant.repository.ScenarioRepository;
 
 /**
  * Decides whether a user may work (see the map and play). An administrator always may. Anyone else needs an
- * active scenario, an active game of that scenario, and a playing ORBAT of that scenario that is finalized and
+ * active scenario, an active game of that scenario, and a finalized playing ORBAT of that active game
  * assigned to them.
  */
 @Service
@@ -50,16 +50,17 @@ public class ActivationService {
             return new Activation(false, NO_ACTIVE_SCENARIO);
         }
         Scenario scenario = activeScenarios.get(0);
-        boolean gameActive = games.findByActiveTrue().stream()
-                .map(Game::getScenarioId)
-                .anyMatch(scenario.getId()::equals);
-        if (!gameActive) {
+        Optional<Game> activeGame = games.findByActiveTrue().stream()
+                .filter(game -> scenario.getId().equals(game.getScenarioId()))
+                .findFirst();
+        if (activeGame.isEmpty()) {
             return new Activation(false, NO_ACTIVE_GAME);
         }
+        Long activeGameId = activeGame.get().getId();
         Optional<PlayingOrbat> orbat = user.getPlayingOrbatId() == null
                 ? Optional.empty()
                 : playingOrbats.findById(user.getPlayingOrbatId())
-                        .filter(found -> scenario.getId().equals(found.getScenarioId()));
+                        .filter(found -> activeGameId.equals(found.getGameId()));
         if (orbat.isEmpty()) {
             return new Activation(false, NOT_ASSIGNED);
         }

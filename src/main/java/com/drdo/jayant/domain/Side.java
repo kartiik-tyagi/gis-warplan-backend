@@ -7,10 +7,10 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "team", uniqueConstraints = @UniqueConstraint(columnNames = "name"))
+@Table(name = "side")
 @Getter
 @Setter
-public class Team {
+public class Side {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -33,6 +33,12 @@ public class Team {
     private String icon;
 
     private Long themeId;
+
+    /** Owning game; required for alliance sides, null for country sides. */
+    private Long gameId;
+
+    /** Denormalized from the game; always set from {@code game.getScenarioId()}, null for country sides. */
+    private Long scenarioId;
 
     @Column(nullable = false)
     private Instant createdAt;

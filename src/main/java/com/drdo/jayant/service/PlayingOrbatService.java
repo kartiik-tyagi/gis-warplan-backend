@@ -15,67 +15,69 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.drdo.jayant.domain.AllianceMember;
 import com.drdo.jayant.domain.AppUser;
-import com.drdo.jayant.domain.FeatureCodes;
+import com.drdo.jayant.domain.FunctionalityCodes;
+import com.drdo.jayant.domain.Game;
 import com.drdo.jayant.domain.PlayingOrbat;
 import com.drdo.jayant.domain.StandardOrbat;
-import com.drdo.jayant.domain.Team;
+import com.drdo.jayant.domain.Side;
 import com.drdo.jayant.repository.AllianceMemberRepository;
 import com.drdo.jayant.repository.AppUserRepository;
+import com.drdo.jayant.repository.GameRepository;
 import com.drdo.jayant.repository.PlayingOrbatRepository;
-import com.drdo.jayant.repository.ScenarioRepository;
 import com.drdo.jayant.repository.StandardOrbatRepository;
-import com.drdo.jayant.repository.TeamRepository;
+import com.drdo.jayant.repository.SideRepository;
 import com.drdo.jayant.security.UserPrincipal;
 import com.drdo.jayant.web.BadRequestException;
 import com.drdo.jayant.web.ConflictException;
 import com.drdo.jayant.web.ForbiddenException;
 import com.drdo.jayant.web.NotFoundException;
 
-/** Playing ORBATs of a scenario: replicas of standard ORBATs, alliance ORBATs, editing and finalizing. */
+/** Playing ORBATs of a game: replicas of standard ORBATs, alliance ORBATs, editing and finalizing. */
 @Service
 public class PlayingOrbatService {
 
     private final PlayingOrbatRepository playingOrbats;
     private final StandardOrbatRepository standardOrbats;
-    private final ScenarioRepository scenarios;
-    private final TeamRepository teams;
+    private final GameRepository games;
+    private final SideRepository sides;
     private final AllianceMemberRepository allianceMembers;
     private final AppUserRepository users;
-    private final TeamService teamService;
+    private final SideService sideService;
     private final OrbatSupport support;
     private final AccessService access;
     private final AuditService audit;
 
     public PlayingOrbatService(PlayingOrbatRepository playingOrbats, StandardOrbatRepository standardOrbats,
-            ScenarioRepository scenarios, TeamRepository teams, AllianceMemberRepository allianceMembers,
-            AppUserRepository users, TeamService teamService, OrbatSupport support, AccessService access,
+            GameRepository games, SideRepository sides, AllianceMemberRepository allianceMembers,
+            AppUserRepository users, SideService sideService, OrbatSupport support, AccessService access,
             AuditService audit) {
         this.playingOrbats = playingOrbats;
         this.standardOrbats = standardOrbats;
-        this.scenarios = scenarios;
-        this.teams = teams;
+        this.games = games;
+        this.sides = sides;
         this.allianceMembers = allianceMembers;
         this.users = users;
-        this.teamService = teamService;
+        this.sideService = sideService;
         this.support = support;
         this.access = access;
         this.audit = audit;
     }
 
     @Transactional(readOnly = true)
-    public List<PlayingOrbat> list(Long scenarioId) {
-        access.requireAnyFeature(FeatureCodes.MANAGE_PLAYING_ORBAT, FeatureCodes.MANAGE_ALLIANCE);
-        requireScenario(scenarioId);
-        return playingOrbats.findByScenarioId(scenarioId);
+    public List<PlayingOrbat> list(Long gameId) {
+        access.requireAnyFunctionality(FunctionalityCodes.MANAGE_PLAYING_ORBAT, FunctionalityCodes.MANAGE_ALLIANCE);
+        requireGame(gameId);
+        return playingOrbats.findByGameId(gameId);
     }
 
     /** Readable by ORBAT managers and by the users the ORBAT is assigned to. */
     @Transactional(readOnly = true)
-    public PlayingOrbat get(Long id) {
+    public PlayingOrbat get(Long gameId, Long id) {
         UserPrincipal principal = access.requirePrincipal();
-        PlayingOrbat orbat = find(id);
-        boolean manager = access.isAdministrator() || principal.hasFeature(FeatureCodes.MANAGE_PLAYING_ORBAT)
-                || principal.hasFeature(FeatureCodes.MANAGE_ALLIANCE);
+        requireGame(gameId);
+        PlayingOrbat orbat = find(gameId, id);
+        boolean manager = access.isAdministrator() || principal.hasFunctionality(FunctionalityCodes.MANAGE_PLAYING_ORBAT)
+                || principal.hasFunctionality(FunctionalityCodes.MANAGE_ALLIANCE);
         if (!manager) {
             boolean assigned = users.findById(principal.userId())
                     .map(user -> id.equals(user.getPlayingOrbatId())).orElse(false);
@@ -87,36 +89,39 @@ public class PlayingOrbatService {
     }
 
     @Transactional
-    public PlayingOrbat replicate(Long scenarioId, Long teamId) {
-        access.requireFeature(FeatureCodes.MANAGE_PLAYING_ORBAT);
-        requireScenario(scenarioId);
-        Team team = teams.findById(teamId).orElseThrow(() -> new NotFoundException("Team not found."));
-        access.requireTeamScope(teamId);
-        if (!TeamService.KIND_COUNTRY.equals(team.getKind())) {
+    public PlayingOrbat replicate(Long gameId, Long sideId) {
+        access.requireFunctionality(FunctionalityCodes.MANAGE_PLAYING_ORBAT);
+        Game game = requireGame(gameId);
+        Side side = sides.findById(sideId).orElseThrow(() -> new NotFoundException("Side not found."));
+        access.requireSideScope(sideId);
+        if (!SideService.KIND_COUNTRY.equals(side.getKind())) {
             throw new BadRequestException("Use the alliance endpoint to create an alliance ORBAT.");
         }
-        StandardOrbat standard = standardOrbat(team);
-        if (playingOrbats.findFirstByScenarioIdAndTeamId(scenarioId, teamId).isPresent()) {
-            throw new ConflictException("This team already has a playing ORBAT in the scenario.");
+        StandardOrbat standard = standardOrbat(side);
+        if (playingOrbats.findFirstByGameIdAndSideId(gameId, sideId).isPresent()) {
+            throw new ConflictException("This side already has a playing ORBAT in the game.");
         }
         PlayingOrbat orbat = new PlayingOrbat();
-        orbat.setName(team.getName());
-        orbat.setTeamId(teamId);
-        orbat.setScenarioId(scenarioId);
+        orbat.setName(side.getName());
+        orbat.setSideId(sideId);
+        orbat.setGameId(game.getId());
+        orbat.setScenarioId(game.getScenarioId());
         orbat.setStandardOrbatId(standard.getId());
         orbat.setOrbatJson(OrbatSupport.document(OrbatSupport.replicate(OrbatSupport.nodesOf(standard.getOrbatJson()),
                 null)));
         orbat.setMetadata(draftMetadata());
         PlayingOrbat saved = playingOrbats.saveAndFlush(orbat);
-        audit.record("CREATE", "PlayingOrbat", saved.getId(), "Playing ORBAT replicated for " + team.getName(),
-                Map.of("scenarioId", scenarioId, "teamId", teamId));
+        audit.record("CREATE", "PlayingOrbat", saved.getId(), "Playing ORBAT replicated for " + side.getName(),
+                Map.of("gameId", gameId, "scenarioId", String.valueOf(game.getScenarioId()), "sideId", sideId));
         return saved;
     }
 
     @Transactional
-    public PlayingOrbat update(Long id, Map<String, Object> orbatJson, Map<String, Object> metadata, Long version) {
-        access.requireAnyFeature(FeatureCodes.MANAGE_PLAYING_ORBAT, FeatureCodes.MANAGE_ALLIANCE);
-        PlayingOrbat orbat = find(id);
+    public PlayingOrbat update(Long gameId, Long id, Map<String, Object> orbatJson, Map<String, Object> metadata,
+            Long version) {
+        access.requireAnyFunctionality(FunctionalityCodes.MANAGE_PLAYING_ORBAT, FunctionalityCodes.MANAGE_ALLIANCE);
+        Game game = requireGame(gameId);
+        PlayingOrbat orbat = find(gameId, id);
         if (!Objects.equals(orbat.getVersion(), version)) {
             throw new ConflictException("The playing ORBAT was changed by someone else. Reload and try again.");
         }
@@ -131,6 +136,7 @@ public class PlayingOrbatService {
             orbat.setOrbatJson(orbatJson);
         }
         orbat.setMetadata(merged);
+        orbat.setScenarioId(game.getScenarioId());
         PlayingOrbat saved = playingOrbats.saveAndFlush(orbat);
         int assigned = 0;
         if (OrbatSupport.STATUS_FINALIZED.equals(status)) {
@@ -139,15 +145,16 @@ public class PlayingOrbatService {
         }
         audit.record(OrbatSupport.STATUS_FINALIZED.equals(status) ? "FINALIZE" : "UPDATE", "PlayingOrbat",
                 saved.getId(), "Playing ORBAT " + saved.getName() + " saved as " + status,
-                Map.of("scenarioId", String.valueOf(saved.getScenarioId()), "status", status, "version",
+                Map.of("gameId", gameId, "scenarioId", String.valueOf(saved.getScenarioId()), "status", status, "version",
                         saved.getVersion(), "usersAssigned", assigned));
         return saved;
     }
 
     @Transactional
-    public void delete(Long id) {
-        access.requireAnyFeature(FeatureCodes.MANAGE_PLAYING_ORBAT, FeatureCodes.MANAGE_ALLIANCE);
-        PlayingOrbat orbat = find(id);
+    public void delete(Long gameId, Long id) {
+        access.requireAnyFunctionality(FunctionalityCodes.MANAGE_PLAYING_ORBAT, FunctionalityCodes.MANAGE_ALLIANCE);
+        requireGame(gameId);
+        PlayingOrbat orbat = find(gameId, id);
         for (AppUser assigned : users.findByPlayingOrbatId(id)) {
             assigned.setPlayingOrbatId(null);
             assigned.setPlayingNodeId(null);
@@ -160,74 +167,78 @@ public class PlayingOrbatService {
     // ---- alliances
 
     @Transactional
-    public Alliance createAlliance(Long scenarioId, String name, String colour, String icon, Long themeId,
-            List<Long> memberTeamIds) {
-        access.requireFeature(FeatureCodes.MANAGE_ALLIANCE);
-        requireScenario(scenarioId);
-        Set<Long> members = new LinkedHashSet<>(memberTeamIds == null ? List.of() : memberTeamIds);
+    public Alliance createAlliance(Long gameId, String name, String colour, String icon, Long themeId,
+            List<Long> memberSideIds) {
+        access.requireFunctionality(FunctionalityCodes.MANAGE_ALLIANCE);
+        Game game = requireGame(gameId);
+        Set<Long> members = new LinkedHashSet<>(memberSideIds == null ? List.of() : memberSideIds);
         if (members.isEmpty() || members.contains(null)) {
-            throw new BadRequestException("memberTeamIds must list at least one team.");
+            throw new BadRequestException("memberSideIds must list at least one side.");
         }
-        List<Team> memberTeams = new ArrayList<>();
+        List<Side> memberSides = new ArrayList<>();
         for (Long memberId : members) {
-            Team member = teams.findById(memberId)
-                    .orElseThrow(() -> new BadRequestException("Team " + memberId + " does not exist."));
-            if (!TeamService.KIND_COUNTRY.equals(member.getKind())) {
-                throw new BadRequestException("Team " + member.getName() + " is not a country team.");
+            Side member = sides.findById(memberId)
+                    .orElseThrow(() -> new BadRequestException("Side " + memberId + " does not exist."));
+            if (!SideService.KIND_COUNTRY.equals(member.getKind())) {
+                throw new BadRequestException("Side " + member.getName() + " is not a country side.");
             }
-            memberTeams.add(member);
+            memberSides.add(member);
         }
         Map<Long, StandardOrbat> standards = new HashMap<>();
-        for (Team member : memberTeams) {
+        for (Side member : memberSides) {
             standards.put(member.getId(), standardOrbat(member));
         }
 
-        Team alliance = teams.saveAndFlush(teamService.build(new Team(), TeamService.KIND_ALLIANCE, name,
-                "Alliance of " + String.join(", ", memberTeams.stream().map(Team::getName).toList()), colour, icon,
+        Side allianceDraft = new Side();
+        allianceDraft.setGameId(game.getId());
+        allianceDraft.setScenarioId(game.getScenarioId());
+        Side alliance = sides.saveAndFlush(sideService.build(allianceDraft, SideService.KIND_ALLIANCE, name,
+                "Alliance of " + String.join(", ", memberSides.stream().map(Side::getName).toList()), colour, icon,
                 themeId));
         for (Long memberId : members) {
             AllianceMember row = new AllianceMember();
-            row.setAllianceTeamId(alliance.getId());
-            row.setMemberTeamId(memberId);
+            row.setAllianceSideId(alliance.getId());
+            row.setMemberSideId(memberId);
             allianceMembers.save(row);
         }
 
         Map<String, Object> root = OrbatSupport.rootNode(alliance.getName(), alliance.getId());
         List<Map<String, Object>> nodes = new ArrayList<>();
         nodes.add(root);
-        for (Team member : memberTeams) {
+        for (Side member : memberSides) {
             nodes.addAll(OrbatSupport.replicate(OrbatSupport.nodesOf(standards.get(member.getId()).getOrbatJson()),
                     (String) root.get("id")));
         }
         PlayingOrbat orbat = new PlayingOrbat();
         orbat.setName(alliance.getName());
-        orbat.setTeamId(alliance.getId());
-        orbat.setScenarioId(scenarioId);
+        orbat.setSideId(alliance.getId());
+        orbat.setGameId(game.getId());
+        orbat.setScenarioId(game.getScenarioId());
         orbat.setOrbatJson(OrbatSupport.document(nodes));
         Map<String, Object> metadata = draftMetadata();
         metadata.put("alliance", true);
-        metadata.put("memberTeamIds", new ArrayList<>(members));
+        metadata.put("memberSideIds", new ArrayList<>(members));
         orbat.setMetadata(metadata);
         support.validate(orbat.getOrbatJson());
         PlayingOrbat savedOrbat = playingOrbats.saveAndFlush(orbat);
 
         audit.record("CREATE", "Alliance", alliance.getId(), "Alliance " + alliance.getName() + " created",
-                Map.of("scenarioId", scenarioId, "memberTeamIds", new ArrayList<>(members), "playingOrbatId",
+                Map.of("gameId", gameId, "scenarioId", String.valueOf(game.getScenarioId()), "memberSideIds", new ArrayList<>(members), "playingOrbatId",
                         savedOrbat.getId()));
         return new Alliance(alliance, new ArrayList<>(members), savedOrbat);
     }
 
     @Transactional(readOnly = true)
-    public List<Alliance> listAlliances(Long scenarioId) {
-        access.requireAnyFeature(FeatureCodes.MANAGE_ALLIANCE, FeatureCodes.MANAGE_PLAYING_ORBAT);
-        requireScenario(scenarioId);
+    public List<Alliance> listAlliances(Long gameId) {
+        access.requireAnyFunctionality(FunctionalityCodes.MANAGE_ALLIANCE, FunctionalityCodes.MANAGE_PLAYING_ORBAT);
+        requireGame(gameId);
         List<Alliance> result = new ArrayList<>();
-        for (PlayingOrbat orbat : playingOrbats.findByScenarioId(scenarioId)) {
-            Team team = orbat.getTeamId() == null ? null : teams.findById(orbat.getTeamId()).orElse(null);
-            if (team != null && TeamService.KIND_ALLIANCE.equals(team.getKind())) {
-                List<Long> memberIds = allianceMembers.findByAllianceTeamId(team.getId()).stream()
-                        .map(AllianceMember::getMemberTeamId).toList();
-                result.add(new Alliance(team, memberIds, orbat));
+        for (PlayingOrbat orbat : playingOrbats.findByGameId(gameId)) {
+            Side side = orbat.getSideId() == null ? null : sides.findById(orbat.getSideId()).orElse(null);
+            if (side != null && SideService.KIND_ALLIANCE.equals(side.getKind())) {
+                List<Long> memberIds = allianceMembers.findByAllianceSideId(side.getId()).stream()
+                        .map(AllianceMember::getMemberSideId).toList();
+                result.add(new Alliance(side, memberIds, orbat));
             }
         }
         return result;
@@ -238,7 +249,7 @@ public class PlayingOrbatService {
     /**
      * Links users to playing nodes: a user whose standardNodeId equals a node's sourceNodeId receives that
      * playing ORBAT and node. An alliance ORBAT never takes over a user who already plays in another ORBAT of
-     * the same scenario (their own country's one).
+     * the same game (their own country's one).
      */
     private int assignUsers(PlayingOrbat orbat) {
         Map<String, String> bySource = new HashMap<>();
@@ -247,8 +258,8 @@ public class PlayingOrbatService {
                 bySource.put(source, id);
             }
         }
-        boolean alliance = orbat.getTeamId() != null && teams.findById(orbat.getTeamId())
-                .map(team -> TeamService.KIND_ALLIANCE.equals(team.getKind())).orElse(false);
+        boolean alliance = orbat.getSideId() != null && sides.findById(orbat.getSideId())
+                .map(side -> SideService.KIND_ALLIANCE.equals(side.getKind())).orElse(false);
         int assigned = 0;
         for (AppUser user : users.findByStandardNodeIdIsNotNull()) {
             String playingNode = bySource.get(user.getStandardNodeId());
@@ -271,14 +282,14 @@ public class PlayingOrbatService {
             return false;
         }
         return playingOrbats.findById(user.getPlayingOrbatId())
-                .map(other -> Objects.equals(other.getScenarioId(), orbat.getScenarioId()))
+                .map(other -> Objects.equals(other.getGameId(), orbat.getGameId()))
                 .orElse(false);
     }
 
-    private StandardOrbat standardOrbat(Team team) {
-        List<StandardOrbat> found = standardOrbats.findByTeamId(team.getId());
+    private StandardOrbat standardOrbat(Side side) {
+        List<StandardOrbat> found = standardOrbats.findBySideId(side.getId());
         if (found.isEmpty()) {
-            throw new BadRequestException("Team " + team.getName() + " has no standard ORBAT.");
+            throw new BadRequestException("Side " + side.getName() + " has no standard ORBAT.");
         }
         return found.get(0);
     }
@@ -301,16 +312,16 @@ public class PlayingOrbatService {
         return metadata;
     }
 
-    private PlayingOrbat find(Long id) {
-        return playingOrbats.findById(id).orElseThrow(() -> new NotFoundException("Playing ORBAT not found."));
+    /** Finds the playing ORBAT and checks that it belongs to the game in the path. */
+    private PlayingOrbat find(Long gameId, Long id) {
+        return playingOrbats.findById(id).filter(orbat -> gameId.equals(orbat.getGameId()))
+                .orElseThrow(() -> new NotFoundException("Playing ORBAT not found."));
     }
 
-    private void requireScenario(Long scenarioId) {
-        if (!scenarios.existsById(scenarioId)) {
-            throw new NotFoundException("Scenario not found.");
-        }
+    private Game requireGame(Long gameId) {
+        return games.findById(gameId).orElseThrow(() -> new NotFoundException("Game not found."));
     }
 
-    public record Alliance(Team team, List<Long> memberTeamIds, PlayingOrbat playingOrbat) {
+    public record Alliance(Side side, List<Long> memberSideIds, PlayingOrbat playingOrbat) {
     }
 }

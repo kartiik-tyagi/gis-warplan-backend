@@ -23,7 +23,7 @@ public class StandardOrbat {
     @Column(nullable = false, length = 160)
     private String name;
 
-    private Long teamId;
+    private Long sideId;
 
     @Version
     private Long version;

@@ -30,7 +30,7 @@ public class RoleEntity {
     private String description;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    private List<Long> featureIds;
+    private List<Long> functionalityIds;
 
     @Column(nullable = false)
     private Instant createdAt;

@@ -12,12 +12,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.drdo.jayant.domain.AppUser;
-import com.drdo.jayant.domain.FeatureEntity;
+import com.drdo.jayant.domain.Functionality;
 import com.drdo.jayant.domain.RoleCodes;
 import com.drdo.jayant.domain.RoleEntity;
 import com.drdo.jayant.domain.Theme;
 import com.drdo.jayant.repository.AppUserRepository;
-import com.drdo.jayant.repository.FeatureRepository;
+import com.drdo.jayant.repository.FunctionalityRepository;
 import com.drdo.jayant.repository.RoleRepository;
 import com.drdo.jayant.repository.ThemeRepository;
 import com.drdo.jayant.security.UserPrincipal;
@@ -28,14 +28,14 @@ import com.drdo.jayant.web.UnauthorizedException;
 public class AccessService {
 
     private final RoleRepository roles;
-    private final FeatureRepository features;
+    private final FunctionalityRepository functionalities;
     private final ThemeRepository themes;
     private final AppUserRepository users;
 
-    public AccessService(RoleRepository roles, FeatureRepository features, ThemeRepository themes,
+    public AccessService(RoleRepository roles, FunctionalityRepository functionalities, ThemeRepository themes,
             AppUserRepository users) {
         this.roles = roles;
-        this.features = features;
+        this.functionalities = functionalities;
         this.themes = themes;
         this.users = users;
     }
@@ -52,29 +52,29 @@ public class AccessService {
         return currentPrincipal().orElseThrow(() -> new UnauthorizedException("Authentication is required."));
     }
 
-    public void requireFeature(String code) {
+    public void requireFunctionality(String code) {
         UserPrincipal principal = requirePrincipal();
-        if (!principal.hasFeature(code)) {
-            throw new ForbiddenException("You do not have access to this feature.");
+        if (!principal.hasFunctionality(code)) {
+            throw new ForbiddenException("You do not have access to this functionality.");
         }
     }
 
-    /** Passes when the caller holds at least one of the features, or is an administrator. */
-    public void requireAnyFeature(String... codes) {
+    /** Passes when the caller holds at least one of the functionalities, or is an administrator. */
+    public void requireAnyFunctionality(String... codes) {
         UserPrincipal principal = requirePrincipal();
         if (principal.hasRole(RoleCodes.ADMINISTRATOR)) {
             return;
         }
         for (String code : codes) {
-            if (principal.hasFeature(code)) {
+            if (principal.hasFunctionality(code)) {
                 return;
             }
         }
-        throw new ForbiddenException("You do not have access to this feature.");
+        throw new ForbiddenException("You do not have access to this functionality.");
     }
 
-    public boolean hasFeature(String code) {
-        return currentPrincipal().map(principal -> principal.hasFeature(code)).orElse(false);
+    public boolean hasFunctionality(String code) {
+        return currentPrincipal().map(principal -> principal.hasFunctionality(code)).orElse(false);
     }
 
     public void requireAdministrator() {
@@ -87,32 +87,32 @@ public class AccessService {
         return currentPrincipal().map(principal -> principal.hasRole(RoleCodes.ADMINISTRATOR)).orElse(false);
     }
 
-    /** A team administrator (without the administrator role) only manages the team they administer. */
-    public boolean isTeamScoped() {
+    /** A side administrator (without the administrator role) only manages the side they administer. */
+    public boolean isSideScoped() {
         return currentPrincipal()
                 .map(principal -> !principal.hasRole(RoleCodes.ADMINISTRATOR)
-                        && principal.hasRole(RoleCodes.TEAM_ADMINISTRATOR))
+                        && principal.hasRole(RoleCodes.SIDE_ADMINISTRATOR))
                 .orElse(false);
     }
 
-    /** The team the caller administers, read fresh from the database. */
+    /** The side the caller administers, read fresh from the database. */
     @Transactional(readOnly = true)
-    public Long administeredTeamId() {
+    public Long administeredSideId() {
         UserPrincipal principal = requirePrincipal();
-        return users.findById(principal.userId()).map(AppUser::getAdministeredTeamId).orElse(null);
+        return users.findById(principal.userId()).map(AppUser::getAdministeredSideId).orElse(null);
     }
 
-    public boolean canManageTeam(Long teamId) {
-        if (!isTeamScoped()) {
+    public boolean canManageSide(Long sideId) {
+        if (!isSideScoped()) {
             return true;
         }
-        Long own = administeredTeamId();
-        return own != null && own.equals(teamId);
+        Long own = administeredSideId();
+        return own != null && own.equals(sideId);
     }
 
-    public void requireTeamScope(Long teamId) {
-        if (!canManageTeam(teamId)) {
-            throw new ForbiddenException("You can only manage the team you administer.");
+    public void requireSideScope(Long sideId) {
+        if (!canManageSide(sideId)) {
+            throw new ForbiddenException("You can only manage the side you administer.");
         }
     }
 
@@ -131,16 +131,16 @@ public class AccessService {
     }
 
     @Transactional(readOnly = true)
-    public List<String> resolveFeatureCodes(AppUser user) {
-        Set<Long> featureIds = new LinkedHashSet<>();
+    public List<String> resolveFunctionalityCodes(AppUser user) {
+        Set<Long> functionalityIds = new LinkedHashSet<>();
         for (RoleEntity role : rolesOf(user)) {
-            if (role.getFeatureIds() != null) {
-                featureIds.addAll(role.getFeatureIds());
+            if (role.getFunctionalityIds() != null) {
+                functionalityIds.addAll(role.getFunctionalityIds());
             }
         }
         List<String> codes = new ArrayList<>();
-        for (FeatureEntity feature : features.findAllById(featureIds)) {
-            codes.add(feature.getCode());
+        for (Functionality functionality : functionalities.findAllById(functionalityIds)) {
+            codes.add(functionality.getCode());
         }
         codes.sort(String::compareTo);
         return codes;

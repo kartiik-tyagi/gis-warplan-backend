@@ -3,14 +3,14 @@ package com.drdo.jayant.domain;
 import java.util.List;
 
 /**
- * Development-time feature catalogue. Must stay identical to
- * frontend {@code src/shared/auth/featureCodes.js}.
+ * Development-time functionality catalogue. Must stay identical to
+ * frontend {@code src/shared/auth/functionalityCodes.js}.
  */
-public final class FeatureCodes {
+public final class FunctionalityCodes {
 
     public static final String MAP_VIEW = "MAP_VIEW";
     public static final String MANAGE_THEMES = "MANAGE_THEMES";
-    public static final String MANAGE_TEAMS = "MANAGE_TEAMS";
+    public static final String MANAGE_SIDES = "MANAGE_SIDES";
     public static final String MANAGE_NODE_TYPES = "MANAGE_NODE_TYPES";
     public static final String MANAGE_ROLES = "MANAGE_ROLES";
     public static final String MANAGE_USERS = "MANAGE_USERS";
@@ -27,7 +27,7 @@ public final class FeatureCodes {
     public static final List<String> ALL = List.of(
             MAP_VIEW,
             MANAGE_THEMES,
-            MANAGE_TEAMS,
+            MANAGE_SIDES,
             MANAGE_NODE_TYPES,
             MANAGE_ROLES,
             MANAGE_USERS,
@@ -41,6 +41,6 @@ public final class FeatureCodes {
             VIEW_AUDIT,
             CHOOSE_THEME);
 
-    private FeatureCodes() {
+    private FunctionalityCodes() {
     }
 }

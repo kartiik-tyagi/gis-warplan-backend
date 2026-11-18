@@ -8,7 +8,7 @@ import com.drdo.jayant.domain.AllianceMember;
 
 public interface AllianceMemberRepository extends JpaRepository<AllianceMember, Long> {
 
-    List<AllianceMember> findByAllianceTeamId(Long allianceTeamId);
+    List<AllianceMember> findByAllianceSideId(Long allianceSideId);
 
-    List<AllianceMember> findByMemberTeamId(Long memberTeamId);
+    List<AllianceMember> findByMemberSideId(Long memberSideId);
 }

@@ -25,6 +25,10 @@ public class Game {
 
     private Long scenarioId;
 
+    /** Free-form plain text describing the moon phases of the game. */
+    @Column(length = 4000)
+    private String moonphases;
+
     @Column(nullable = false, length = 30)
     private String status = "DRAFT";
 

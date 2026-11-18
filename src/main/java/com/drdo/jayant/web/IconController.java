@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.drdo.jayant.domain.FeatureCodes;
+import com.drdo.jayant.domain.FunctionalityCodes;
 import com.drdo.jayant.service.AccessService;
 import com.drdo.jayant.service.AuditService;
 import com.drdo.jayant.service.IconService;
@@ -54,7 +54,7 @@ public class IconController {
     public ResponseEntity<Map<String, Object>> upload(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "path", required = false, defaultValue = "") String directory) throws IOException {
-        access.requireFeature(FeatureCodes.MANAGE_ICONS);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_ICONS);
         String stored = icons.upload(directory, file.getOriginalFilename(), file.getBytes());
         audit.record("UPLOAD", "Icon", null, "Icon uploaded " + stored, Map.of("path", stored));
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("path", stored, "size", file.getSize()));

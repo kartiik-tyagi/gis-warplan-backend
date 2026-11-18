@@ -29,7 +29,7 @@ public class AppUser {
     @JdbcTypeCode(SqlTypes.JSON)
     private List<Long> roleIds;
 
-    private Long administeredTeamId;
+    private Long administeredSideId;
 
     @Column(nullable = false)
     private boolean active = true;

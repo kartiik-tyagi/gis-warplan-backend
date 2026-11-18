@@ -5,10 +5,10 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "feature", uniqueConstraints = @UniqueConstraint(columnNames = "code"))
+@Table(name = "functionality", uniqueConstraints = @UniqueConstraint(columnNames = "code"))
 @Getter
 @Setter
-public class FeatureEntity {
+public class Functionality {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

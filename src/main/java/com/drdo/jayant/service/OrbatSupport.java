@@ -12,12 +12,12 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 import com.drdo.jayant.repository.NodeTypeRepository;
-import com.drdo.jayant.repository.TeamRepository;
+import com.drdo.jayant.repository.SideRepository;
 import com.drdo.jayant.web.BadRequestException;
 
 /**
  * Structure rules for {@code orbatJson}: an object with a {@code nodes} array whose items carry
- * id, parentId, nodeTypeId, homeTeamId and name (plus any extra fields, which are kept as sent).
+ * id, parentId, nodeTypeId, homeSideId and name (plus any extra fields, which are kept as sent).
  */
 @Component
 public class OrbatSupport {
@@ -30,11 +30,11 @@ public class OrbatSupport {
     private static final int MAX_NAME = 200;
 
     private final NodeTypeRepository nodeTypes;
-    private final TeamRepository teams;
+    private final SideRepository sides;
 
-    public OrbatSupport(NodeTypeRepository nodeTypes, TeamRepository teams) {
+    public OrbatSupport(NodeTypeRepository nodeTypes, SideRepository sides) {
         this.nodeTypes = nodeTypes;
-        this.teams = teams;
+        this.sides = sides;
     }
 
     /** Validates the document and returns its nodes. */
@@ -52,7 +52,7 @@ public class OrbatSupport {
         }
         Map<String, Map<String, Object>> byId = new LinkedHashMap<>();
         Set<Long> typeIds = new HashSet<>();
-        Set<Long> teamIds = new HashSet<>();
+        Set<Long> sideIds = new HashSet<>();
         for (int index = 0; index < list.size(); index++) {
             if (!(list.get(index) instanceof Map<?, ?> item)) {
                 throw new BadRequestException("Node " + index + " must be an object.");
@@ -74,11 +74,11 @@ public class OrbatSupport {
                 }
                 typeIds.add(typeId);
             }
-            Long homeTeam = asLong(node.get("homeTeamId"));
-            if (homeTeam == null) {
-                throw new BadRequestException("Node " + id + " needs a numeric homeTeamId.");
+            Long homeSide = asLong(node.get("homeSideId"));
+            if (homeSide == null) {
+                throw new BadRequestException("Node " + id + " needs a numeric homeSideId.");
             }
-            teamIds.add(homeTeam);
+            sideIds.add(homeSide);
         }
         for (Map.Entry<String, Map<String, Object>> entry : byId.entrySet()) {
             Object parent = entry.getValue().get("parentId");
@@ -90,8 +90,8 @@ public class OrbatSupport {
         if (!typeIds.isEmpty() && nodeTypes.findAllById(typeIds).size() != typeIds.size()) {
             throw new BadRequestException("One or more nodeTypeId values do not exist.");
         }
-        if (teams.findAllById(teamIds).size() != teamIds.size()) {
-            throw new BadRequestException("One or more homeTeamId values do not exist.");
+        if (sides.findAllById(sideIds).size() != sideIds.size()) {
+            throw new BadRequestException("One or more homeSideId values do not exist.");
         }
         return new ArrayList<>(byId.values());
     }
@@ -116,18 +116,18 @@ public class OrbatSupport {
         return document;
     }
 
-    public static Map<String, Object> rootNode(String name, Long homeTeamId) {
+    public static Map<String, Object> rootNode(String name, Long homeSideId) {
         Map<String, Object> node = new LinkedHashMap<>();
         node.put("id", UUID.randomUUID().toString());
         node.put("parentId", null);
         node.put("nodeTypeId", null);
-        node.put("homeTeamId", homeTeamId);
+        node.put("homeSideId", homeSideId);
         node.put("name", name);
         return node;
     }
 
     /**
-     * Copies nodes under fresh ids: every copy keeps its fields (including homeTeamId), gains
+     * Copies nodes under fresh ids: every copy keeps its fields (including homeSideId), gains
      * sourceNodeId = original id, and has its parentId remapped. Roots are attached to {@code newRootParent}.
      */
     public static List<Map<String, Object>> replicate(List<Map<String, Object>> source, String newRootParent) {

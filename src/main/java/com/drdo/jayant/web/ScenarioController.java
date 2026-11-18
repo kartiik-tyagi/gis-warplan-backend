@@ -76,7 +76,7 @@ public class ScenarioController {
     @PostMapping("/scenarios/{scenarioId}/games")
     public ResponseEntity<GameResponse> createGame(@PathVariable Long scenarioId,
             @Valid @RequestBody GameRequest request) {
-        Game game = scenarios.createGame(scenarioId, request.name(), request.configJson());
+        Game game = scenarios.createGame(scenarioId, request.name(), request.moonphases(), request.configJson());
         return ResponseEntity.status(HttpStatus.CREATED).body(GameResponse.of(game));
     }
 
@@ -87,7 +87,7 @@ public class ScenarioController {
 
     @PutMapping("/games/{id}")
     public GameResponse updateGame(@PathVariable Long id, @Valid @RequestBody GameRequest request) {
-        return GameResponse.of(scenarios.updateGame(id, request.name(), request.configJson()));
+        return GameResponse.of(scenarios.updateGame(id, request.name(), request.moonphases(), request.configJson()));
     }
 
     @DeleteMapping("/games/{id}")
@@ -118,15 +118,17 @@ public class ScenarioController {
         }
     }
 
-    public record GameRequest(@NotBlank @Size(max = 160) String name, Map<String, Object> configJson) {
+    public record GameRequest(@NotBlank @Size(max = 160) String name, @Size(max = 4000) String moonphases,
+            Map<String, Object> configJson) {
     }
 
-    public record GameResponse(Long id, String name, Long scenarioId, String status, boolean active,
-            Map<String, Object> configJson, Instant startedAt, Instant endedAt, Instant createdAt,
+    public record GameResponse(Long id, String name, Long scenarioId, String moonphases, String status,
+            boolean active, Map<String, Object> configJson, Instant startedAt, Instant endedAt, Instant createdAt,
             Instant updatedAt) {
 
         static GameResponse of(Game game) {
-            return new GameResponse(game.getId(), game.getName(), game.getScenarioId(), game.getStatus(),
+            return new GameResponse(game.getId(), game.getName(), game.getScenarioId(), game.getMoonphases(),
+                    game.getStatus(),
                     game.isActive(), game.getConfigJson(), game.getStartedAt(), game.getEndedAt(),
                     game.getCreatedAt(), game.getUpdatedAt());
         }

@@ -21,7 +21,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 
 @RestController
-@RequestMapping("/api/v1/teams/{teamId}/standard-orbat")
+@RequestMapping("/api/v1/sides/{sideId}/standard-orbat")
 public class StandardOrbatController {
 
     private final StandardOrbatService orbats;
@@ -31,21 +31,21 @@ public class StandardOrbatController {
     }
 
     @GetMapping
-    public StandardOrbatResponse get(@PathVariable Long teamId) {
-        return StandardOrbatResponse.of(orbats.get(teamId));
+    public StandardOrbatResponse get(@PathVariable Long sideId) {
+        return StandardOrbatResponse.of(orbats.get(sideId));
     }
 
-    /** Creates the empty root node when the team has no standard ORBAT yet (201), otherwise returns it (200). */
+    /** Creates the empty root node when the side has no standard ORBAT yet (201), otherwise returns it (200). */
     @PostMapping
-    public ResponseEntity<StandardOrbatResponse> create(@PathVariable Long teamId) {
-        Created result = orbats.create(teamId);
+    public ResponseEntity<StandardOrbatResponse> create(@PathVariable Long sideId) {
+        Created result = orbats.create(sideId);
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(StandardOrbatResponse.of(result.orbat()));
     }
 
     @PutMapping
-    public StandardOrbatResponse update(@PathVariable Long teamId, @Valid @RequestBody StandardOrbatRequest request) {
-        return StandardOrbatResponse.of(orbats.update(teamId, request.orbatJson(), request.metadata(),
+    public StandardOrbatResponse update(@PathVariable Long sideId, @Valid @RequestBody StandardOrbatRequest request) {
+        return StandardOrbatResponse.of(orbats.update(sideId, request.orbatJson(), request.metadata(),
                 request.version()));
     }
 
@@ -53,11 +53,11 @@ public class StandardOrbatController {
             @NotNull Long version) {
     }
 
-    public record StandardOrbatResponse(Long id, String name, Long teamId, Long version,
+    public record StandardOrbatResponse(Long id, String name, Long sideId, Long version,
             Map<String, Object> orbatJson, Map<String, Object> metadata, Instant createdAt, Instant updatedAt) {
 
         static StandardOrbatResponse of(StandardOrbat orbat) {
-            return new StandardOrbatResponse(orbat.getId(), orbat.getName(), orbat.getTeamId(), orbat.getVersion(),
+            return new StandardOrbatResponse(orbat.getId(), orbat.getName(), orbat.getSideId(), orbat.getVersion(),
                     orbat.getOrbatJson(), orbat.getMetadata(), orbat.getCreatedAt(), orbat.getUpdatedAt());
         }
     }

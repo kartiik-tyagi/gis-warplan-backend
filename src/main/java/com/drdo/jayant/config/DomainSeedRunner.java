@@ -14,20 +14,20 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import com.drdo.jayant.domain.AppUser;
-import com.drdo.jayant.domain.FeatureCodes;
-import com.drdo.jayant.domain.FeatureEntity;
+import com.drdo.jayant.domain.FunctionalityCodes;
+import com.drdo.jayant.domain.Functionality;
 import com.drdo.jayant.domain.RoleCodes;
 import com.drdo.jayant.domain.RoleEntity;
 import com.drdo.jayant.domain.Theme;
 import com.drdo.jayant.repository.AppUserRepository;
-import com.drdo.jayant.repository.FeatureRepository;
+import com.drdo.jayant.repository.FunctionalityRepository;
 import com.drdo.jayant.repository.RoleRepository;
 import com.drdo.jayant.repository.ThemeRepository;
 import com.drdo.jayant.service.IconService;
 
 /**
- * Idempotent seed of the default theme, features, roles, the APEX administrator and starter icons.
- * Existing rows are never overwritten, except that the ADMINISTRATOR role always receives every feature.
+ * Idempotent seed of the default theme, functionalities, roles, the APEX administrator and starter icons.
+ * Existing rows are never overwritten, except that the ADMINISTRATOR role always receives every functionality.
  */
 @Component
 @Order(10)
@@ -39,36 +39,36 @@ public class DomainSeedRunner implements ApplicationRunner {
 
     private static final Logger log = LogManager.getLogger(DomainSeedRunner.class);
 
-    private static final Map<String, String> FEATURE_NAMES = Map.ofEntries(
-            Map.entry(FeatureCodes.MAP_VIEW, "Map view"),
-            Map.entry(FeatureCodes.MANAGE_THEMES, "Manage themes"),
-            Map.entry(FeatureCodes.MANAGE_TEAMS, "Manage teams"),
-            Map.entry(FeatureCodes.MANAGE_NODE_TYPES, "Manage node types"),
-            Map.entry(FeatureCodes.MANAGE_ROLES, "Manage roles"),
-            Map.entry(FeatureCodes.MANAGE_USERS, "Manage users"),
-            Map.entry(FeatureCodes.MARK_AS_USER, "Mark as user"),
-            Map.entry(FeatureCodes.MANAGE_STANDARD_ORBAT, "Manage standard ORBAT"),
-            Map.entry(FeatureCodes.MANAGE_PLAYING_ORBAT, "Manage playing ORBAT"),
-            Map.entry(FeatureCodes.MANAGE_ALLIANCE, "Manage alliance"),
-            Map.entry(FeatureCodes.MANAGE_SCENARIO, "Manage scenario"),
-            Map.entry(FeatureCodes.MANAGE_GAME, "Manage game"),
-            Map.entry(FeatureCodes.MANAGE_ICONS, "Manage icons"),
-            Map.entry(FeatureCodes.VIEW_AUDIT, "View audit"),
-            Map.entry(FeatureCodes.CHOOSE_THEME, "Choose theme"));
+    private static final Map<String, String> FUNCTIONALITY_NAMES = Map.ofEntries(
+            Map.entry(FunctionalityCodes.MAP_VIEW, "Map view"),
+            Map.entry(FunctionalityCodes.MANAGE_THEMES, "Manage themes"),
+            Map.entry(FunctionalityCodes.MANAGE_SIDES, "Manage sides"),
+            Map.entry(FunctionalityCodes.MANAGE_NODE_TYPES, "Manage node types"),
+            Map.entry(FunctionalityCodes.MANAGE_ROLES, "Manage roles"),
+            Map.entry(FunctionalityCodes.MANAGE_USERS, "Manage users"),
+            Map.entry(FunctionalityCodes.MARK_AS_USER, "Mark as user"),
+            Map.entry(FunctionalityCodes.MANAGE_STANDARD_ORBAT, "Manage standard ORBAT"),
+            Map.entry(FunctionalityCodes.MANAGE_PLAYING_ORBAT, "Manage playing ORBAT"),
+            Map.entry(FunctionalityCodes.MANAGE_ALLIANCE, "Manage alliance"),
+            Map.entry(FunctionalityCodes.MANAGE_SCENARIO, "Manage scenario"),
+            Map.entry(FunctionalityCodes.MANAGE_GAME, "Manage game"),
+            Map.entry(FunctionalityCodes.MANAGE_ICONS, "Manage icons"),
+            Map.entry(FunctionalityCodes.VIEW_AUDIT, "View audit"),
+            Map.entry(FunctionalityCodes.CHOOSE_THEME, "Choose theme"));
 
     private final ThemeRepository themes;
-    private final FeatureRepository features;
+    private final FunctionalityRepository functionalities;
     private final RoleRepository roles;
     private final AppUserRepository users;
     private final PasswordEncoder passwordEncoder;
     private final IconService icons;
     private final TransactionTemplate transaction;
 
-    public DomainSeedRunner(ThemeRepository themes, FeatureRepository features, RoleRepository roles,
+    public DomainSeedRunner(ThemeRepository themes, FunctionalityRepository functionalities, RoleRepository roles,
             AppUserRepository users, PasswordEncoder passwordEncoder, IconService icons,
             TransactionTemplate transaction) {
         this.themes = themes;
-        this.features = features;
+        this.functionalities = functionalities;
         this.roles = roles;
         this.users = users;
         this.passwordEncoder = passwordEncoder;
@@ -85,16 +85,16 @@ public class DomainSeedRunner implements ApplicationRunner {
 
     private void seed() {
         seedTheme();
-        List<Long> allFeatureIds = seedFeatures();
-        Map<String, Long> featureIds = featureIdsByCode();
-        RoleEntity administrator = seedRole(RoleCodes.ADMINISTRATOR, "Administrator", allFeatureIds, true);
-        seedRole(RoleCodes.TEAM_ADMINISTRATOR, "Team administrator", ids(featureIds,
-                FeatureCodes.MAP_VIEW, FeatureCodes.MANAGE_TEAMS, FeatureCodes.MANAGE_USERS,
-                FeatureCodes.MARK_AS_USER, FeatureCodes.MANAGE_STANDARD_ORBAT, FeatureCodes.CHOOSE_THEME), false);
+        List<Long> allFunctionalityIds = seedFunctionalities();
+        Map<String, Long> functionalityIds = functionalityIdsByCode();
+        RoleEntity administrator = seedRole(RoleCodes.ADMINISTRATOR, "Administrator", allFunctionalityIds, true);
+        seedRole(RoleCodes.SIDE_ADMINISTRATOR, "Side administrator", ids(functionalityIds,
+                FunctionalityCodes.MAP_VIEW, FunctionalityCodes.MANAGE_SIDES, FunctionalityCodes.MANAGE_USERS,
+                FunctionalityCodes.MARK_AS_USER, FunctionalityCodes.MANAGE_STANDARD_ORBAT, FunctionalityCodes.CHOOSE_THEME), false);
         seedRole(RoleCodes.COMMANDER, "Commander",
-                ids(featureIds, FeatureCodes.MAP_VIEW, FeatureCodes.CHOOSE_THEME), false);
+                ids(functionalityIds, FunctionalityCodes.MAP_VIEW, FunctionalityCodes.CHOOSE_THEME), false);
         seedRole(RoleCodes.PLANNER, "Planner",
-                ids(featureIds, FeatureCodes.MAP_VIEW, FeatureCodes.CHOOSE_THEME), false);
+                ids(functionalityIds, FunctionalityCodes.MAP_VIEW, FunctionalityCodes.CHOOSE_THEME), false);
         seedApex(administrator);
     }
 
@@ -110,23 +110,23 @@ public class DomainSeedRunner implements ApplicationRunner {
         themes.save(theme);
     }
 
-    private List<Long> seedFeatures() {
+    private List<Long> seedFunctionalities() {
         List<Long> ids = new ArrayList<>();
-        for (String code : FeatureCodes.ALL) {
-            FeatureEntity feature = features.findByCode(code).orElseGet(() -> {
-                FeatureEntity created = new FeatureEntity();
+        for (String code : FunctionalityCodes.ALL) {
+            Functionality functionality = functionalities.findByCode(code).orElseGet(() -> {
+                Functionality created = new Functionality();
                 created.setCode(code);
-                created.setName(FEATURE_NAMES.getOrDefault(code, code));
-                return features.save(created);
+                created.setName(FUNCTIONALITY_NAMES.getOrDefault(code, code));
+                return functionalities.save(created);
             });
-            ids.add(feature.getId());
+            ids.add(functionality.getId());
         }
         return ids;
     }
 
-    private Map<String, Long> featureIdsByCode() {
+    private Map<String, Long> functionalityIdsByCode() {
         Map<String, Long> result = new java.util.HashMap<>();
-        features.findAll().forEach(feature -> result.put(feature.getCode(), feature.getId()));
+        functionalities.findAll().forEach(functionality -> result.put(functionality.getCode(), functionality.getId()));
         return result;
     }
 
@@ -138,17 +138,17 @@ public class DomainSeedRunner implements ApplicationRunner {
         return ids;
     }
 
-    private RoleEntity seedRole(String code, String name, List<Long> featureIds, boolean refresh) {
+    private RoleEntity seedRole(String code, String name, List<Long> functionalityIds, boolean refresh) {
         RoleEntity role = roles.findByCode(code).orElse(null);
         if (role == null) {
             role = new RoleEntity();
             role.setCode(code);
             role.setName(name);
-            role.setFeatureIds(new ArrayList<>(featureIds));
+            role.setFunctionalityIds(new ArrayList<>(functionalityIds));
             return roles.save(role);
         }
-        if (refresh && !featureIds.equals(role.getFeatureIds())) {
-            role.setFeatureIds(new ArrayList<>(featureIds));
+        if (refresh && !functionalityIds.equals(role.getFunctionalityIds())) {
+            role.setFunctionalityIds(new ArrayList<>(functionalityIds));
             return roles.save(role);
         }
         return role;

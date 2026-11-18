@@ -7,6 +7,8 @@ spring:
     password: ${DB_PASSWORD:postgres}
   jpa:
     hibernate:
+      # NOTE: update never renames/drops. After the team->side, feature->functionality and game-owned ORBAT
+      # change, drop the old "jayant" database once and restart (no migration files; see LegacySchemaCheckRunner).
       ddl-auto: update
     open-in-view: false
     properties:

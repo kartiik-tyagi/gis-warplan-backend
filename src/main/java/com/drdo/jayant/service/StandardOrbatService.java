@@ -7,11 +7,11 @@ import java.util.Objects;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.drdo.jayant.domain.FeatureCodes;
+import com.drdo.jayant.domain.FunctionalityCodes;
 import com.drdo.jayant.domain.StandardOrbat;
-import com.drdo.jayant.domain.Team;
+import com.drdo.jayant.domain.Side;
 import com.drdo.jayant.repository.StandardOrbatRepository;
-import com.drdo.jayant.repository.TeamRepository;
+import com.drdo.jayant.repository.SideRepository;
 import com.drdo.jayant.web.BadRequestException;
 import com.drdo.jayant.web.ConflictException;
 import com.drdo.jayant.web.NotFoundException;
@@ -20,58 +20,58 @@ import com.drdo.jayant.web.NotFoundException;
 public class StandardOrbatService {
 
     private final StandardOrbatRepository orbats;
-    private final TeamRepository teams;
+    private final SideRepository sides;
     private final OrbatSupport support;
     private final AccessService access;
     private final AuditService audit;
 
-    public StandardOrbatService(StandardOrbatRepository orbats, TeamRepository teams, OrbatSupport support,
+    public StandardOrbatService(StandardOrbatRepository orbats, SideRepository sides, OrbatSupport support,
             AccessService access, AuditService audit) {
         this.orbats = orbats;
-        this.teams = teams;
+        this.sides = sides;
         this.support = support;
         this.access = access;
         this.audit = audit;
     }
 
     @Transactional(readOnly = true)
-    public StandardOrbat get(Long teamId) {
-        access.requireAnyFeature(FeatureCodes.MANAGE_STANDARD_ORBAT, FeatureCodes.MARK_AS_USER,
-                FeatureCodes.MANAGE_PLAYING_ORBAT, FeatureCodes.MANAGE_ALLIANCE, FeatureCodes.MANAGE_USERS);
-        team(teamId);
-        access.requireTeamScope(teamId);
-        return find(teamId);
+    public StandardOrbat get(Long sideId) {
+        access.requireAnyFunctionality(FunctionalityCodes.MANAGE_STANDARD_ORBAT, FunctionalityCodes.MARK_AS_USER,
+                FunctionalityCodes.MANAGE_PLAYING_ORBAT, FunctionalityCodes.MANAGE_ALLIANCE, FunctionalityCodes.MANAGE_USERS);
+        side(sideId);
+        access.requireSideScope(sideId);
+        return find(sideId);
     }
 
     @Transactional
-    public Created create(Long teamId) {
-        access.requireFeature(FeatureCodes.MANAGE_STANDARD_ORBAT);
-        Team team = team(teamId);
-        access.requireTeamScope(teamId);
-        List<StandardOrbat> existing = orbats.findByTeamId(teamId);
+    public Created create(Long sideId) {
+        access.requireFunctionality(FunctionalityCodes.MANAGE_STANDARD_ORBAT);
+        Side side = side(sideId);
+        access.requireSideScope(sideId);
+        List<StandardOrbat> existing = orbats.findBySideId(sideId);
         if (!existing.isEmpty()) {
             return new Created(existing.get(0), false);
         }
-        if (!TeamService.KIND_COUNTRY.equals(team.getKind())) {
-            throw new BadRequestException("Only country teams have a standard ORBAT.");
+        if (!SideService.KIND_COUNTRY.equals(side.getKind())) {
+            throw new BadRequestException("Only country sides have a standard ORBAT.");
         }
         StandardOrbat orbat = new StandardOrbat();
-        orbat.setName(team.getName());
-        orbat.setTeamId(teamId);
-        orbat.setOrbatJson(OrbatSupport.document(List.of(OrbatSupport.rootNode(team.getName(), teamId))));
+        orbat.setName(side.getName());
+        orbat.setSideId(sideId);
+        orbat.setOrbatJson(OrbatSupport.document(List.of(OrbatSupport.rootNode(side.getName(), sideId))));
         orbat.setMetadata(new java.util.LinkedHashMap<>());
         StandardOrbat saved = orbats.saveAndFlush(orbat);
-        audit.record("CREATE", "StandardOrbat", saved.getId(), "Standard ORBAT created for " + team.getName(),
-                Map.of("teamId", teamId));
+        audit.record("CREATE", "StandardOrbat", saved.getId(), "Standard ORBAT created for " + side.getName(),
+                Map.of("sideId", sideId));
         return new Created(saved, true);
     }
 
     @Transactional
-    public StandardOrbat update(Long teamId, Map<String, Object> orbatJson, Map<String, Object> metadata, Long version) {
-        access.requireFeature(FeatureCodes.MANAGE_STANDARD_ORBAT);
-        team(teamId);
-        access.requireTeamScope(teamId);
-        StandardOrbat orbat = find(teamId);
+    public StandardOrbat update(Long sideId, Map<String, Object> orbatJson, Map<String, Object> metadata, Long version) {
+        access.requireFunctionality(FunctionalityCodes.MANAGE_STANDARD_ORBAT);
+        side(sideId);
+        access.requireSideScope(sideId);
+        StandardOrbat orbat = find(sideId);
         if (!Objects.equals(orbat.getVersion(), version)) {
             throw new ConflictException("The standard ORBAT was changed by someone else. Reload and try again.");
         }
@@ -81,19 +81,19 @@ public class StandardOrbatService {
             orbat.setMetadata(metadata);
         }
         StandardOrbat saved = orbats.saveAndFlush(orbat);
-        audit.record("UPDATE", "StandardOrbat", saved.getId(), "Standard ORBAT saved for team " + teamId,
-                Map.of("teamId", teamId, "nodes", nodes, "version", saved.getVersion()));
+        audit.record("UPDATE", "StandardOrbat", saved.getId(), "Standard ORBAT saved for side " + sideId,
+                Map.of("sideId", sideId, "nodes", nodes, "version", saved.getVersion()));
         return saved;
     }
 
-    private Team team(Long teamId) {
-        return teams.findById(teamId).orElseThrow(() -> new NotFoundException("Team not found."));
+    private Side side(Long sideId) {
+        return sides.findById(sideId).orElseThrow(() -> new NotFoundException("Side not found."));
     }
 
-    private StandardOrbat find(Long teamId) {
-        List<StandardOrbat> found = orbats.findByTeamId(teamId);
+    private StandardOrbat find(Long sideId) {
+        List<StandardOrbat> found = orbats.findBySideId(sideId);
         if (found.isEmpty()) {
-            throw new NotFoundException("The team has no standard ORBAT yet.");
+            throw new NotFoundException("The side has no standard ORBAT yet.");
         }
         return found.get(0);
     }

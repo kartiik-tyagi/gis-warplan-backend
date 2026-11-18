@@ -45,7 +45,7 @@ public class UserController {
     @PatchMapping("/{id}")
     public UserResponse patch(@PathVariable Long id, @Valid @RequestBody UserPatchRequest request) {
         return UserResponse.of(users.patch(id, request.name(), request.password(), request.roleIds(),
-                request.active(), request.administeredTeamId(), request.themeId()));
+                request.active(), request.administeredSideId(), request.themeId()));
     }
 
     @PatchMapping("/me/theme")
@@ -66,7 +66,7 @@ public class UserController {
             @Size(min = 3, max = 72) String password,
             List<Long> roleIds,
             Boolean active,
-            Long administeredTeamId,
+            Long administeredSideId,
             Long themeId) {
     }
 
@@ -82,13 +82,13 @@ public class UserController {
     }
 
     /** Never carries the password hash. */
-    public record UserResponse(Long id, String name, List<Long> roleIds, Long administeredTeamId, boolean active,
+    public record UserResponse(Long id, String name, List<Long> roleIds, Long administeredSideId, boolean active,
             Long themeId, Long standardOrbatId, String standardNodeId, Long playingOrbatId, String playingNodeId,
             Instant lastLoginAt, Instant createdAt, Instant updatedAt) {
 
         static UserResponse of(AppUser user) {
             return new UserResponse(user.getId(), user.getName(),
-                    user.getRoleIds() == null ? List.of() : user.getRoleIds(), user.getAdministeredTeamId(),
+                    user.getRoleIds() == null ? List.of() : user.getRoleIds(), user.getAdministeredSideId(),
                     user.isActive(), user.getThemeId(), user.getStandardOrbatId(), user.getStandardNodeId(),
                     user.getPlayingOrbatId(), user.getPlayingNodeId(), user.getLastLoginAt(), user.getCreatedAt(),
                     user.getUpdatedAt());

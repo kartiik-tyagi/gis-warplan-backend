@@ -8,5 +8,5 @@ import com.drdo.jayant.domain.StandardOrbat;
 
 public interface StandardOrbatRepository extends JpaRepository<StandardOrbat, Long> {
 
-    List<StandardOrbat> findByTeamId(Long teamId);
+    List<StandardOrbat> findBySideId(Long sideId);
 }

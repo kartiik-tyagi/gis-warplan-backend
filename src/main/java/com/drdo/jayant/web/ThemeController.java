@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.drdo.jayant.domain.FeatureCodes;
+import com.drdo.jayant.domain.FunctionalityCodes;
 import com.drdo.jayant.domain.Theme;
 import com.drdo.jayant.service.AccessService;
 import com.drdo.jayant.service.ThemeService;
@@ -51,21 +51,21 @@ public class ThemeController {
 
     @PostMapping
     public ResponseEntity<ThemeResponse> create(@Valid @RequestBody ThemeRequest request) {
-        access.requireFeature(FeatureCodes.MANAGE_THEMES);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_THEMES);
         Theme theme = themes.create(request.name(), request.description(), request.defaultTheme(), request.configJson());
         return ResponseEntity.status(HttpStatus.CREATED).body(ThemeResponse.of(theme));
     }
 
     @PutMapping("/{id}")
     public ThemeResponse update(@PathVariable Long id, @Valid @RequestBody ThemeRequest request) {
-        access.requireFeature(FeatureCodes.MANAGE_THEMES);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_THEMES);
         return ThemeResponse.of(themes.update(id, request.name(), request.description(), request.defaultTheme(),
                 request.configJson()));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        access.requireFeature(FeatureCodes.MANAGE_THEMES);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_THEMES);
         themes.delete(id);
         return ResponseEntity.noContent().build();
     }

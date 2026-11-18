@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.drdo.jayant.domain.AppUser;
 import com.drdo.jayant.domain.AuditLog;
-import com.drdo.jayant.domain.FeatureCodes;
+import com.drdo.jayant.domain.FunctionalityCodes;
 import com.drdo.jayant.domain.UserSession;
 import com.drdo.jayant.repository.AppUserRepository;
 import com.drdo.jayant.repository.AuditLogRepository;
@@ -56,7 +56,7 @@ public class AuditController {
             @RequestParam(required = false) Long entityId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
-        access.requireFeature(FeatureCodes.VIEW_AUDIT);
+        access.requireFunctionality(FunctionalityCodes.VIEW_AUDIT);
         Specification<AuditLog> filter = (root, query, builder) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (userId != null) {
@@ -84,7 +84,7 @@ public class AuditController {
             @RequestParam(required = false) Long userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
-        access.requireFeature(FeatureCodes.VIEW_AUDIT);
+        access.requireFunctionality(FunctionalityCodes.VIEW_AUDIT);
         var pageable = pageable(page, size, "issuedAt");
         Page<UserSession> result = userId == null ? sessions.findAll(pageable) : sessions.findByUserId(userId, pageable);
         Map<Long, String> names = new HashMap<>();

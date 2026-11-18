@@ -6,25 +6,25 @@ public record UserPrincipal(
         Long userId,
         String name,
         List<String> roleCodes,
-        List<String> featureCodes,
-        Long administeredTeamId,
+        List<String> functionalityCodes,
+        Long administeredSideId,
         String tokenId) {
 
     public UserPrincipal {
         roleCodes = roleCodes == null ? List.of() : List.copyOf(roleCodes);
-        featureCodes = featureCodes == null ? List.of() : List.copyOf(featureCodes);
+        functionalityCodes = functionalityCodes == null ? List.of() : List.copyOf(functionalityCodes);
     }
 
-    public UserPrincipal(Long userId, String name, List<String> roleCodes, List<String> featureCodes,
-            Long administeredTeamId) {
-        this(userId, name, roleCodes, featureCodes, administeredTeamId, null);
+    public UserPrincipal(Long userId, String name, List<String> roleCodes, List<String> functionalityCodes,
+            Long administeredSideId) {
+        this(userId, name, roleCodes, functionalityCodes, administeredSideId, null);
     }
 
     public boolean hasRole(String code) {
         return roleCodes.contains(code);
     }
 
-    public boolean hasFeature(String code) {
-        return featureCodes.contains(code);
+    public boolean hasFunctionality(String code) {
+        return functionalityCodes.contains(code);
     }
 }

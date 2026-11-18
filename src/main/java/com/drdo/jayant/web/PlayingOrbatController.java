@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.drdo.jayant.domain.PlayingOrbat;
 import com.drdo.jayant.service.PlayingOrbatService;
 import com.drdo.jayant.service.PlayingOrbatService.Alliance;
-import com.drdo.jayant.web.TeamController.TeamResponse;
+import com.drdo.jayant.web.SideController.SideResponse;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -37,49 +37,50 @@ public class PlayingOrbatController {
         this.playingOrbats = playingOrbats;
     }
 
-    @GetMapping("/scenarios/{scenarioId}/playing-orbats")
-    public List<PlayingOrbatResponse> list(@PathVariable Long scenarioId) {
-        return playingOrbats.list(scenarioId).stream().map(PlayingOrbatResponse::of).toList();
+    @GetMapping("/games/{gameId}/playing-orbats")
+    public List<PlayingOrbatResponse> list(@PathVariable Long gameId) {
+        return playingOrbats.list(gameId).stream().map(PlayingOrbatResponse::of).toList();
     }
 
-    @PostMapping("/scenarios/{scenarioId}/playing-orbats/replica")
-    public ResponseEntity<PlayingOrbatResponse> replica(@PathVariable Long scenarioId,
+    @PostMapping("/games/{gameId}/playing-orbats/replica")
+    public ResponseEntity<PlayingOrbatResponse> replica(@PathVariable Long gameId,
             @Valid @RequestBody ReplicaRequest request) {
-        PlayingOrbat orbat = playingOrbats.replicate(scenarioId, request.teamId());
+        PlayingOrbat orbat = playingOrbats.replicate(gameId, request.sideId());
         return ResponseEntity.status(HttpStatus.CREATED).body(PlayingOrbatResponse.of(orbat));
     }
 
-    @GetMapping("/playing-orbats/{id}")
-    public PlayingOrbatResponse get(@PathVariable Long id) {
-        return PlayingOrbatResponse.of(playingOrbats.get(id));
+    @GetMapping("/games/{gameId}/playing-orbats/{id}")
+    public PlayingOrbatResponse get(@PathVariable Long gameId, @PathVariable Long id) {
+        return PlayingOrbatResponse.of(playingOrbats.get(gameId, id));
     }
 
-    @PutMapping("/playing-orbats/{id}")
-    public PlayingOrbatResponse update(@PathVariable Long id, @Valid @RequestBody PlayingOrbatRequest request) {
-        return PlayingOrbatResponse.of(playingOrbats.update(id, request.orbatJson(), request.metadata(),
+    @PutMapping("/games/{gameId}/playing-orbats/{id}")
+    public PlayingOrbatResponse update(@PathVariable Long gameId, @PathVariable Long id,
+            @Valid @RequestBody PlayingOrbatRequest request) {
+        return PlayingOrbatResponse.of(playingOrbats.update(gameId, id, request.orbatJson(), request.metadata(),
                 request.version()));
     }
 
-    @DeleteMapping("/playing-orbats/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        playingOrbats.delete(id);
+    @DeleteMapping("/games/{gameId}/playing-orbats/{id}")
+    public ResponseEntity<Void> delete(@PathVariable Long gameId, @PathVariable Long id) {
+        playingOrbats.delete(gameId, id);
         return ResponseEntity.noContent().build();
     }
 
-    @GetMapping("/scenarios/{scenarioId}/alliances")
-    public List<AllianceResponse> alliances(@PathVariable Long scenarioId) {
-        return playingOrbats.listAlliances(scenarioId).stream().map(AllianceResponse::of).toList();
+    @GetMapping("/games/{gameId}/alliances")
+    public List<AllianceResponse> alliances(@PathVariable Long gameId) {
+        return playingOrbats.listAlliances(gameId).stream().map(AllianceResponse::of).toList();
     }
 
-    @PostMapping("/scenarios/{scenarioId}/alliances")
-    public ResponseEntity<AllianceResponse> createAlliance(@PathVariable Long scenarioId,
+    @PostMapping("/games/{gameId}/alliances")
+    public ResponseEntity<AllianceResponse> createAlliance(@PathVariable Long gameId,
             @Valid @RequestBody AllianceRequest request) {
-        Alliance alliance = playingOrbats.createAlliance(scenarioId, request.name(), request.colour(),
-                request.icon(), request.themeId(), request.memberTeamIds());
+        Alliance alliance = playingOrbats.createAlliance(gameId, request.name(), request.colour(),
+                request.icon(), request.themeId(), request.memberSideIds());
         return ResponseEntity.status(HttpStatus.CREATED).body(AllianceResponse.of(alliance));
     }
 
-    public record ReplicaRequest(@NotNull Long teamId) {
+    public record ReplicaRequest(@NotNull Long sideId) {
     }
 
     /** Only the fields sent are changed; metadata keys are merged into the stored metadata. */
@@ -87,13 +88,13 @@ public class PlayingOrbatController {
             @NotNull Long version) {
     }
 
-    public record PlayingOrbatResponse(Long id, String name, Long teamId, Long standardOrbatId, Long scenarioId,
-            Long version, Map<String, Object> orbatJson, Map<String, Object> metadata, Instant createdAt,
+    public record PlayingOrbatResponse(Long id, String name, Long sideId, Long standardOrbatId, Long gameId,
+            Long scenarioId, Long version, Map<String, Object> orbatJson, Map<String, Object> metadata, Instant createdAt,
             Instant updatedAt) {
 
         static PlayingOrbatResponse of(PlayingOrbat orbat) {
-            return new PlayingOrbatResponse(orbat.getId(), orbat.getName(), orbat.getTeamId(),
-                    orbat.getStandardOrbatId(), orbat.getScenarioId(), orbat.getVersion(), orbat.getOrbatJson(),
+            return new PlayingOrbatResponse(orbat.getId(), orbat.getName(), orbat.getSideId(),
+                    orbat.getStandardOrbatId(), orbat.getGameId(), orbat.getScenarioId(), orbat.getVersion(), orbat.getOrbatJson(),
                     orbat.getMetadata(), orbat.getCreatedAt(), orbat.getUpdatedAt());
         }
     }
@@ -103,13 +104,13 @@ public class PlayingOrbatController {
             @Pattern(regexp = "^#[0-9A-Fa-f]{6}$") String colour,
             @Size(max = 300) String icon,
             Long themeId,
-            @NotEmpty List<Long> memberTeamIds) {
+            @NotEmpty List<Long> memberSideIds) {
     }
 
-    public record AllianceResponse(TeamResponse team, List<Long> memberTeamIds, Long playingOrbatId) {
+    public record AllianceResponse(SideResponse side, List<Long> memberSideIds, Long playingOrbatId) {
 
         static AllianceResponse of(Alliance alliance) {
-            return new AllianceResponse(TeamResponse.of(alliance.team()), alliance.memberTeamIds(),
+            return new AllianceResponse(SideResponse.of(alliance.side()), alliance.memberSideIds(),
                     alliance.playingOrbat().getId());
         }
     }

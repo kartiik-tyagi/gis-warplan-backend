@@ -14,8 +14,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.drdo.jayant.domain.FeatureCodes;
-import com.drdo.jayant.domain.FeatureEntity;
+import com.drdo.jayant.domain.FunctionalityCodes;
+import com.drdo.jayant.domain.Functionality;
 import com.drdo.jayant.domain.RoleEntity;
 import com.drdo.jayant.service.AccessService;
 import com.drdo.jayant.service.RoleService;
@@ -25,7 +25,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-/** Features are read-only; roles are managed with MANAGE_ROLES. */
+/** Functionalities are read-only; roles are managed with MANAGE_ROLES. */
 @RestController
 @RequestMapping("/api/v1")
 public class RoleController {
@@ -38,41 +38,41 @@ public class RoleController {
         this.access = access;
     }
 
-    @GetMapping("/features")
-    public List<FeatureResponse> features() {
-        access.requireAnyFeature(FeatureCodes.MANAGE_ROLES);
-        return roles.listFeatures().stream().map(FeatureResponse::of).toList();
+    @GetMapping("/functionalities")
+    public List<FunctionalityResponse> functionalities() {
+        access.requireAnyFunctionality(FunctionalityCodes.MANAGE_ROLES);
+        return roles.listFunctionalities().stream().map(FunctionalityResponse::of).toList();
     }
 
     @GetMapping("/roles")
     public List<RoleResponse> list() {
-        access.requireAnyFeature(FeatureCodes.MANAGE_ROLES, FeatureCodes.MANAGE_USERS, FeatureCodes.MARK_AS_USER);
+        access.requireAnyFunctionality(FunctionalityCodes.MANAGE_ROLES, FunctionalityCodes.MANAGE_USERS, FunctionalityCodes.MARK_AS_USER);
         return roles.list().stream().map(RoleResponse::of).toList();
     }
 
     @GetMapping("/roles/{id}")
     public RoleResponse get(@PathVariable Long id) {
-        access.requireAnyFeature(FeatureCodes.MANAGE_ROLES, FeatureCodes.MANAGE_USERS, FeatureCodes.MARK_AS_USER);
+        access.requireAnyFunctionality(FunctionalityCodes.MANAGE_ROLES, FunctionalityCodes.MANAGE_USERS, FunctionalityCodes.MARK_AS_USER);
         return RoleResponse.of(roles.get(id));
     }
 
     @PostMapping("/roles")
     public ResponseEntity<RoleResponse> create(@Valid @RequestBody RoleRequest request) {
-        access.requireFeature(FeatureCodes.MANAGE_ROLES);
-        RoleEntity role = roles.create(request.code(), request.name(), request.description(), request.featureIds());
+        access.requireFunctionality(FunctionalityCodes.MANAGE_ROLES);
+        RoleEntity role = roles.create(request.code(), request.name(), request.description(), request.functionalityIds());
         return ResponseEntity.status(HttpStatus.CREATED).body(RoleResponse.of(role));
     }
 
     @PutMapping("/roles/{id}")
     public RoleResponse update(@PathVariable Long id, @Valid @RequestBody RoleRequest request) {
-        access.requireFeature(FeatureCodes.MANAGE_ROLES);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_ROLES);
         return RoleResponse.of(roles.update(id, request.code(), request.name(), request.description(),
-                request.featureIds()));
+                request.functionalityIds()));
     }
 
     @DeleteMapping("/roles/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        access.requireFeature(FeatureCodes.MANAGE_ROLES);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_ROLES);
         roles.delete(id);
         return ResponseEntity.noContent().build();
     }
@@ -81,23 +81,23 @@ public class RoleController {
             @NotBlank @Size(max = 60) @Pattern(regexp = "^[A-Za-z][A-Za-z0-9_]*$") String code,
             @NotBlank @Size(max = 120) String name,
             @Size(max = 500) String description,
-            List<Long> featureIds) {
+            List<Long> functionalityIds) {
     }
 
-    public record RoleResponse(Long id, String code, String name, String description, List<Long> featureIds,
+    public record RoleResponse(Long id, String code, String name, String description, List<Long> functionalityIds,
             Instant createdAt, Instant updatedAt) {
 
         static RoleResponse of(RoleEntity role) {
             return new RoleResponse(role.getId(), role.getCode(), role.getName(), role.getDescription(),
-                    role.getFeatureIds() == null ? List.of() : role.getFeatureIds(), role.getCreatedAt(),
+                    role.getFunctionalityIds() == null ? List.of() : role.getFunctionalityIds(), role.getCreatedAt(),
                     role.getUpdatedAt());
         }
     }
 
-    public record FeatureResponse(Long id, String code, String name, String description) {
+    public record FunctionalityResponse(Long id, String code, String name, String description) {
 
-        static FeatureResponse of(FeatureEntity feature) {
-            return new FeatureResponse(feature.getId(), feature.getCode(), feature.getName(), feature.getDescription());
+        static FunctionalityResponse of(Functionality functionality) {
+            return new FunctionalityResponse(functionality.getId(), functionality.getCode(), functionality.getName(), functionality.getDescription());
         }
     }
 }

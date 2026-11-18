@@ -9,9 +9,11 @@ import com.drdo.jayant.domain.PlayingOrbat;
 
 public interface PlayingOrbatRepository extends JpaRepository<PlayingOrbat, Long> {
 
-    List<PlayingOrbat> findByTeamId(Long teamId);
+    List<PlayingOrbat> findBySideId(Long sideId);
 
     List<PlayingOrbat> findByScenarioId(Long scenarioId);
 
-    Optional<PlayingOrbat> findFirstByScenarioIdAndTeamId(Long scenarioId, Long teamId);
+    List<PlayingOrbat> findByGameId(Long gameId);
+
+    Optional<PlayingOrbat> findFirstByGameIdAndSideId(Long gameId, Long sideId);
 }

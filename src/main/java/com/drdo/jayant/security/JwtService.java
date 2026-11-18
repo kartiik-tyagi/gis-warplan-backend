@@ -48,8 +48,8 @@ public class JwtService {
                 .subject(String.valueOf(principal.userId()))
                 .claim("name", principal.name())
                 .claim("roles", principal.roleCodes())
-                .claim("features", principal.featureCodes())
-                .claim("administeredTeamId", principal.administeredTeamId())
+                .claim("functionalities", principal.functionalityCodes())
+                .claim("administeredSideId", principal.administeredSideId())
                 .issuedAt(Date.from(issuedAt))
                 .expiration(Date.from(expiresAt))
                 .signWith(key)
@@ -63,15 +63,15 @@ public class JwtService {
         }
         try {
             Claims claims = Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
-            Long administeredTeamId = claims.get("administeredTeamId", Number.class) == null
+            Long administeredSideId = claims.get("administeredSideId", Number.class) == null
                     ? null
-                    : claims.get("administeredTeamId", Number.class).longValue();
+                    : claims.get("administeredSideId", Number.class).longValue();
             return Optional.of(new UserPrincipal(
                     Long.valueOf(claims.getSubject()),
                     claims.get("name", String.class),
                     strings(claims.get("roles")),
-                    strings(claims.get("features")),
-                    administeredTeamId,
+                    strings(claims.get("functionalities")),
+                    administeredSideId,
                     claims.getId()));
         } catch (JwtException | IllegalArgumentException exception) {
             log.debug("Token rejected reason={}", exception.getClass().getSimpleName());

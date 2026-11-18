@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.drdo.jayant.domain.FeatureCodes;
+import com.drdo.jayant.domain.FunctionalityCodes;
 import com.drdo.jayant.domain.NodeType;
 import com.drdo.jayant.service.AccessService;
 import com.drdo.jayant.service.NodeTypeService;
@@ -52,21 +52,21 @@ public class NodeTypeController {
 
     @PostMapping
     public ResponseEntity<NodeTypeResponse> create(@Valid @RequestBody NodeTypeRequest request) {
-        access.requireFeature(FeatureCodes.MANAGE_NODE_TYPES);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_NODE_TYPES);
         NodeType type = nodeTypes.create(request.code(), request.name(), request.iconPath(), request.properties());
         return ResponseEntity.status(HttpStatus.CREATED).body(NodeTypeResponse.of(type));
     }
 
     @PutMapping("/{id}")
     public NodeTypeResponse update(@PathVariable Long id, @Valid @RequestBody NodeTypeRequest request) {
-        access.requireFeature(FeatureCodes.MANAGE_NODE_TYPES);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_NODE_TYPES);
         return NodeTypeResponse.of(nodeTypes.update(id, request.code(), request.name(), request.iconPath(),
                 request.properties()));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        access.requireFeature(FeatureCodes.MANAGE_NODE_TYPES);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_NODE_TYPES);
         nodeTypes.delete(id);
         return ResponseEntity.noContent().build();
     }

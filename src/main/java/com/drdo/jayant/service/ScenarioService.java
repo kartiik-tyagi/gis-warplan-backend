@@ -8,15 +8,19 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.drdo.jayant.domain.AllianceMember;
 import com.drdo.jayant.domain.AppUser;
-import com.drdo.jayant.domain.FeatureCodes;
+import com.drdo.jayant.domain.FunctionalityCodes;
 import com.drdo.jayant.domain.Game;
 import com.drdo.jayant.domain.PlayingOrbat;
 import com.drdo.jayant.domain.Scenario;
+import com.drdo.jayant.domain.Side;
+import com.drdo.jayant.repository.AllianceMemberRepository;
 import com.drdo.jayant.repository.AppUserRepository;
 import com.drdo.jayant.repository.GameRepository;
 import com.drdo.jayant.repository.PlayingOrbatRepository;
 import com.drdo.jayant.repository.ScenarioRepository;
+import com.drdo.jayant.repository.SideRepository;
 import com.drdo.jayant.web.ConflictException;
 import com.drdo.jayant.web.NotFoundException;
 
@@ -35,16 +39,21 @@ public class ScenarioService {
     private final GameRepository games;
     private final PlayingOrbatRepository playingOrbats;
     private final AppUserRepository users;
+    private final SideRepository sides;
+    private final AllianceMemberRepository allianceMembers;
     private final ThemeService themes;
     private final AccessService access;
     private final AuditService audit;
 
     public ScenarioService(ScenarioRepository scenarios, GameRepository games, PlayingOrbatRepository playingOrbats,
-            AppUserRepository users, ThemeService themes, AccessService access, AuditService audit) {
+            AppUserRepository users, SideRepository sides, AllianceMemberRepository allianceMembers,
+            ThemeService themes, AccessService access, AuditService audit) {
         this.scenarios = scenarios;
         this.games = games;
         this.playingOrbats = playingOrbats;
         this.users = users;
+        this.sides = sides;
+        this.allianceMembers = allianceMembers;
         this.themes = themes;
         this.access = access;
         this.audit = audit;
@@ -54,19 +63,19 @@ public class ScenarioService {
 
     @Transactional(readOnly = true)
     public List<Scenario> listScenarios() {
-        access.requireFeature(FeatureCodes.MANAGE_SCENARIO);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
         return scenarios.findAll(Sort.by("id"));
     }
 
     @Transactional(readOnly = true)
     public Scenario getScenario(Long id) {
-        access.requireFeature(FeatureCodes.MANAGE_SCENARIO);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
         return findScenario(id);
     }
 
     @Transactional
     public Scenario createScenario(String name, String description, Long themeId, Map<String, Object> configJson) {
-        access.requireFeature(FeatureCodes.MANAGE_SCENARIO);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
         themes.requireExists(themeId);
         Scenario scenario = new Scenario();
         scenario.setName(name.trim());
@@ -81,7 +90,7 @@ public class ScenarioService {
     @Transactional
     public Scenario updateScenario(Long id, String name, String description, Long themeId,
             Map<String, Object> configJson) {
-        access.requireFeature(FeatureCodes.MANAGE_SCENARIO);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
         Scenario scenario = findScenario(id);
         themes.requireExists(themeId);
         scenario.setName(name.trim());
@@ -96,20 +105,14 @@ public class ScenarioService {
     /** Removes a scenario with its games and playing ORBATs; users assigned to those ORBATs are unassigned. */
     @Transactional
     public void deleteScenario(Long id) {
-        access.requireFeature(FeatureCodes.MANAGE_SCENARIO);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
         Scenario scenario = findScenario(id);
         if (scenario.isActive()) {
             throw new ConflictException("The active scenario cannot be deleted.");
         }
-        for (PlayingOrbat orbat : playingOrbats.findByScenarioId(id)) {
-            for (AppUser assigned : users.findByPlayingOrbatId(orbat.getId())) {
-                assigned.setPlayingOrbatId(null);
-                assigned.setPlayingNodeId(null);
-                users.save(assigned);
-            }
-            playingOrbats.delete(orbat);
+        for (Game game : games.findByScenarioId(id)) {
+            purgeGame(game);
         }
-        games.deleteAll(games.findByScenarioId(id));
         scenarios.delete(scenario);
         audit.record("DELETE", "Scenario", id, "Scenario " + scenario.getName() + " deleted", Map.of());
     }
@@ -117,7 +120,7 @@ public class ScenarioService {
     /** Makes the scenario the only active one; games of other scenarios are deactivated. */
     @Transactional
     public Scenario activateScenario(Long id) {
-        access.requireFeature(FeatureCodes.MANAGE_SCENARIO);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
         Scenario scenario = findScenario(id);
         activate(scenario);
         audit.record("ACTIVATE", "Scenario", id, "Scenario " + scenario.getName() + " activated", Map.of());
@@ -128,24 +131,25 @@ public class ScenarioService {
 
     @Transactional(readOnly = true)
     public List<Game> listGames(Long scenarioId) {
-        access.requireFeature(FeatureCodes.MANAGE_GAME);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_GAME);
         findScenario(scenarioId);
         return games.findByScenarioId(scenarioId);
     }
 
     @Transactional(readOnly = true)
     public Game getGame(Long id) {
-        access.requireFeature(FeatureCodes.MANAGE_GAME);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_GAME);
         return findGame(id);
     }
 
     @Transactional
-    public Game createGame(Long scenarioId, String name, Map<String, Object> configJson) {
-        access.requireFeature(FeatureCodes.MANAGE_GAME);
+    public Game createGame(Long scenarioId, String name, String moonphases, Map<String, Object> configJson) {
+        access.requireFunctionality(FunctionalityCodes.MANAGE_GAME);
         findScenario(scenarioId);
         Game game = new Game();
         game.setName(name.trim());
         game.setScenarioId(scenarioId);
+        game.setMoonphases(moonphases);
         game.setStatus(GAME_DRAFT);
         game.setConfigJson(configJson);
         Game saved = games.save(game);
@@ -155,10 +159,11 @@ public class ScenarioService {
     }
 
     @Transactional
-    public Game updateGame(Long id, String name, Map<String, Object> configJson) {
-        access.requireFeature(FeatureCodes.MANAGE_GAME);
+    public Game updateGame(Long id, String name, String moonphases, Map<String, Object> configJson) {
+        access.requireFunctionality(FunctionalityCodes.MANAGE_GAME);
         Game game = findGame(id);
         game.setName(name.trim());
+        game.setMoonphases(moonphases);
         game.setConfigJson(configJson);
         Game saved = games.save(game);
         audit.record("UPDATE", "Game", saved.getId(), "Game " + saved.getName() + " updated", Map.of());
@@ -167,19 +172,19 @@ public class ScenarioService {
 
     @Transactional
     public void deleteGame(Long id) {
-        access.requireFeature(FeatureCodes.MANAGE_GAME);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_GAME);
         Game game = findGame(id);
         if (game.isActive()) {
             throw new ConflictException("The active game cannot be deleted.");
         }
-        games.delete(game);
+        purgeGame(game);
         audit.record("DELETE", "Game", id, "Game " + game.getName() + " deleted", Map.of());
     }
 
     /** Makes the game the only active one and activates its scenario too. */
     @Transactional
     public Game activateGame(Long id) {
-        access.requireFeature(FeatureCodes.MANAGE_GAME);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_GAME);
         Game game = findGame(id);
         Scenario scenario = findScenario(game.getScenarioId());
         activate(scenario);
@@ -202,6 +207,27 @@ public class ScenarioService {
     }
 
     // ---- shared
+
+    /**
+     * Removes a game with everything it owns: its playing ORBATs (assigned users are unassigned) and its
+     * alliance sides with their members.
+     */
+    private void purgeGame(Game game) {
+        for (PlayingOrbat orbat : playingOrbats.findByGameId(game.getId())) {
+            for (AppUser assigned : users.findByPlayingOrbatId(orbat.getId())) {
+                assigned.setPlayingOrbatId(null);
+                assigned.setPlayingNodeId(null);
+                users.save(assigned);
+            }
+            playingOrbats.delete(orbat);
+        }
+        for (Side alliance : sides.findByGameId(game.getId())) {
+            List<AllianceMember> members = allianceMembers.findByAllianceSideId(alliance.getId());
+            allianceMembers.deleteAll(members);
+            sides.delete(alliance);
+        }
+        games.delete(game);
+    }
 
     Scenario findScenario(Long id) {
         return scenarios.findById(id).orElseThrow(() -> new NotFoundException("Scenario not found."));

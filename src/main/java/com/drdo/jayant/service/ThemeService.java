@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.drdo.jayant.domain.Theme;
 import com.drdo.jayant.repository.AppUserRepository;
 import com.drdo.jayant.repository.ScenarioRepository;
-import com.drdo.jayant.repository.TeamRepository;
+import com.drdo.jayant.repository.SideRepository;
 import com.drdo.jayant.repository.ThemeRepository;
 import com.drdo.jayant.web.BadRequestException;
 import com.drdo.jayant.web.ConflictException;
@@ -22,15 +22,15 @@ public class ThemeService {
     private final ThemeRepository themes;
     private final AppUserRepository users;
     private final ScenarioRepository scenarios;
-    private final TeamRepository teams;
+    private final SideRepository sides;
     private final AuditService audit;
 
     public ThemeService(ThemeRepository themes, AppUserRepository users, ScenarioRepository scenarios,
-            TeamRepository teams, AuditService audit) {
+            SideRepository sides, AuditService audit) {
         this.themes = themes;
         this.users = users;
         this.scenarios = scenarios;
-        this.teams = teams;
+        this.sides = sides;
         this.audit = audit;
     }
 
@@ -92,7 +92,7 @@ public class ThemeService {
         if (theme.isDefaultTheme()) {
             throw new ConflictException("The default theme cannot be deleted.");
         }
-        if (users.countByThemeId(id) > 0 || scenarios.countByThemeId(id) > 0 || teams.countByThemeId(id) > 0) {
+        if (users.countByThemeId(id) > 0 || scenarios.countByThemeId(id) > 0 || sides.countByThemeId(id) > 0) {
             throw new ConflictException("The theme is in use.");
         }
         themes.delete(theme);

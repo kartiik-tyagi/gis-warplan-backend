@@ -15,17 +15,17 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.drdo.jayant.domain.AppUser;
-import com.drdo.jayant.domain.FeatureCodes;
-import com.drdo.jayant.domain.FeatureEntity;
+import com.drdo.jayant.domain.FunctionalityCodes;
+import com.drdo.jayant.domain.Functionality;
 import com.drdo.jayant.domain.RoleCodes;
 import com.drdo.jayant.domain.RoleEntity;
 import com.drdo.jayant.domain.StandardOrbat;
 import com.drdo.jayant.domain.UserSession;
 import com.drdo.jayant.repository.AppUserRepository;
-import com.drdo.jayant.repository.FeatureRepository;
+import com.drdo.jayant.repository.FunctionalityRepository;
 import com.drdo.jayant.repository.RoleRepository;
 import com.drdo.jayant.repository.StandardOrbatRepository;
-import com.drdo.jayant.repository.TeamRepository;
+import com.drdo.jayant.repository.SideRepository;
 import com.drdo.jayant.repository.UserSessionRepository;
 import com.drdo.jayant.security.UserPrincipal;
 import com.drdo.jayant.web.BadRequestException;
@@ -38,23 +38,23 @@ public class UserService {
 
     private final AppUserRepository users;
     private final RoleRepository roles;
-    private final FeatureRepository features;
+    private final FunctionalityRepository functionalities;
     private final StandardOrbatRepository standardOrbats;
-    private final TeamRepository teams;
+    private final SideRepository sides;
     private final UserSessionRepository sessions;
     private final PasswordEncoder passwordEncoder;
     private final ThemeService themes;
     private final AccessService access;
     private final AuditService audit;
 
-    public UserService(AppUserRepository users, RoleRepository roles, FeatureRepository features,
-            StandardOrbatRepository standardOrbats, TeamRepository teams, UserSessionRepository sessions,
+    public UserService(AppUserRepository users, RoleRepository roles, FunctionalityRepository functionalities,
+            StandardOrbatRepository standardOrbats, SideRepository sides, UserSessionRepository sessions,
             PasswordEncoder passwordEncoder, ThemeService themes, AccessService access, AuditService audit) {
         this.users = users;
         this.roles = roles;
-        this.features = features;
+        this.functionalities = functionalities;
         this.standardOrbats = standardOrbats;
-        this.teams = teams;
+        this.sides = sides;
         this.sessions = sessions;
         this.passwordEncoder = passwordEncoder;
         this.themes = themes;
@@ -64,29 +64,29 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public List<AppUser> list() {
-        access.requireFeature(FeatureCodes.MANAGE_USERS);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_USERS);
         Visibility visibility = visibility();
         return users.findAll(Sort.by("id")).stream().filter(visibility::sees).toList();
     }
 
     @Transactional(readOnly = true)
     public AppUser get(Long id) {
-        access.requireFeature(FeatureCodes.MANAGE_USERS);
+        access.requireFunctionality(FunctionalityCodes.MANAGE_USERS);
         AppUser user = find(id);
         if (!visibility().sees(user)) {
-            throw new ForbiddenException("You can only manage users of the team you administer.");
+            throw new ForbiddenException("You can only manage users of the side you administer.");
         }
         return user;
     }
 
     @Transactional
     public AppUser patch(Long id, String name, String password, List<Long> roleIds, Boolean active,
-            Long administeredTeamId, Long themeId) {
-        access.requireFeature(FeatureCodes.MANAGE_USERS);
+            Long administeredSideId, Long themeId) {
+        access.requireFunctionality(FunctionalityCodes.MANAGE_USERS);
         UserPrincipal caller = access.requirePrincipal();
         AppUser user = find(id);
         if (!visibility().sees(user)) {
-            throw new ForbiddenException("You can only manage users of the team you administer.");
+            throw new ForbiddenException("You can only manage users of the side you administer.");
         }
         if (!access.isAdministrator() && access.isAdministrator(user)) {
             throw new ForbiddenException("Only an administrator can change an administrator.");
@@ -132,15 +132,15 @@ public class UserService {
             user.setActive(active);
             changed.put("active", active);
         }
-        if (administeredTeamId != null) {
+        if (administeredSideId != null) {
             if (!access.isAdministrator()) {
-                throw new ForbiddenException("Only an administrator can assign the administered team.");
+                throw new ForbiddenException("Only an administrator can assign the administered side.");
             }
-            if (!teams.existsById(administeredTeamId)) {
-                throw new BadRequestException("Team " + administeredTeamId + " does not exist.");
+            if (!sides.existsById(administeredSideId)) {
+                throw new BadRequestException("Side " + administeredSideId + " does not exist.");
             }
-            user.setAdministeredTeamId(administeredTeamId);
-            changed.put("administeredTeamId", administeredTeamId);
+            user.setAdministeredSideId(administeredSideId);
+            changed.put("administeredSideId", administeredSideId);
         }
         if (themeId != null) {
             themes.requireExists(themeId);
@@ -157,7 +157,7 @@ public class UserService {
 
     @Transactional
     public AppUser chooseTheme(Long themeId) {
-        access.requireFeature(FeatureCodes.CHOOSE_THEME);
+        access.requireFunctionality(FunctionalityCodes.CHOOSE_THEME);
         themes.requireExists(themeId);
         AppUser user = find(access.requirePrincipal().userId());
         user.setThemeId(themeId);
@@ -170,10 +170,10 @@ public class UserService {
     @Transactional
     public AppUser markFromNode(Long standardOrbatId, String standardNodeId, String name, String password,
             List<Long> roleIds) {
-        access.requireFeature(FeatureCodes.MARK_AS_USER);
+        access.requireFunctionality(FunctionalityCodes.MARK_AS_USER);
         StandardOrbat orbat = standardOrbats.findById(standardOrbatId)
                 .orElseThrow(() -> new NotFoundException("Standard ORBAT not found."));
-        access.requireTeamScope(orbat.getTeamId());
+        access.requireSideScope(orbat.getSideId());
         boolean nodeExists = OrbatSupport.nodesOf(orbat.getOrbatJson()).stream()
                 .anyMatch(node -> standardNodeId.equals(node.get("id")));
         if (!nodeExists) {
@@ -208,7 +208,7 @@ public class UserService {
 
     /**
      * Roles must exist. Anyone but an administrator is also barred from handing out the administrator role
-     * or any feature they do not hold themselves.
+     * or any functionality they do not hold themselves.
      */
     private List<Long> assignableRoles(List<Long> roleIds) {
         Set<Long> unique = new LinkedHashSet<>(roleIds == null ? List.of() : roleIds);
@@ -225,10 +225,10 @@ public class UserService {
                 if (RoleCodes.ADMINISTRATOR.equals(role.getCode())) {
                     throw new ForbiddenException("Only an administrator can assign the administrator role.");
                 }
-                List<Long> featureIds = role.getFeatureIds() == null ? List.of() : role.getFeatureIds();
-                for (FeatureEntity feature : features.findAllById(featureIds)) {
-                    if (!caller.hasFeature(feature.getCode())) {
-                        throw new ForbiddenException("You cannot assign a role with features you do not hold.");
+                List<Long> functionalityIds = role.getFunctionalityIds() == null ? List.of() : role.getFunctionalityIds();
+                for (Functionality functionality : functionalities.findAllById(functionalityIds)) {
+                    if (!caller.hasFunctionality(functionality.getCode())) {
+                        throw new ForbiddenException("You cannot assign a role with functionalities you do not hold.");
                     }
                 }
             }
@@ -261,14 +261,14 @@ public class UserService {
     }
 
     private Visibility visibility() {
-        if (!access.isTeamScoped()) {
+        if (!access.isSideScoped()) {
             return user -> true;
         }
-        Long own = access.administeredTeamId();
-        Map<Long, Long> orbatTeams = new HashMap<>();
-        standardOrbats.findAll().forEach(orbat -> orbatTeams.put(orbat.getId(), orbat.getTeamId()));
-        return user -> own != null && (own.equals(user.getAdministeredTeamId())
-                || (user.getStandardOrbatId() != null && own.equals(orbatTeams.get(user.getStandardOrbatId()))));
+        Long own = access.administeredSideId();
+        Map<Long, Long> orbatSides = new HashMap<>();
+        standardOrbats.findAll().forEach(orbat -> orbatSides.put(orbat.getId(), orbat.getSideId()));
+        return user -> own != null && (own.equals(user.getAdministeredSideId())
+                || (user.getStandardOrbatId() != null && own.equals(orbatSides.get(user.getStandardOrbatId()))));
     }
 
     private interface Visibility {

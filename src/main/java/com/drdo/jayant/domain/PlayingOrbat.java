@@ -23,10 +23,15 @@ public class PlayingOrbat {
     @Column(nullable = false, length = 160)
     private String name;
 
-    private Long teamId;
+    private Long sideId;
 
     private Long standardOrbatId;
 
+    /** Owning game (required). */
+    @Column(nullable = false)
+    private Long gameId;
+
+    /** Denormalized from the game; always set from {@code game.getScenarioId()}, never independently. */
     private Long scenarioId;
 
     @Version

@@ -22,11 +22,11 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 
 import com.drdo.jayant.domain.AppUser;
-import com.drdo.jayant.domain.FeatureCodes;
+import com.drdo.jayant.domain.FunctionalityCodes;
 import com.drdo.jayant.domain.RoleCodes;
 import com.drdo.jayant.domain.RoleEntity;
 import com.drdo.jayant.repository.AppUserRepository;
-import com.drdo.jayant.repository.FeatureRepository;
+import com.drdo.jayant.repository.FunctionalityRepository;
 import com.drdo.jayant.repository.RoleRepository;
 import com.drdo.jayant.repository.ThemeRepository;
 import com.drdo.jayant.config.DomainSeedRunner;
@@ -43,7 +43,7 @@ class DomainFoundationTest {
     @Autowired
     private RoleRepository roles;
     @Autowired
-    private FeatureRepository features;
+    private FunctionalityRepository functionalities;
     @Autowired
     private ThemeRepository themes;
     @Autowired
@@ -55,12 +55,12 @@ class DomainFoundationTest {
     void seedIsIdempotentAndComplete() throws Exception {
         seedRunner.run(null);
         seedRunner.run(null);
-        assertThat(features.count()).isEqualTo(FeatureCodes.ALL.size());
+        assertThat(functionalities.count()).isEqualTo(FunctionalityCodes.ALL.size());
         assertThat(roles.count()).isEqualTo(4);
         assertThat(themes.count()).isEqualTo(1);
         assertThat(users.findByName("APEX")).isPresent();
         RoleEntity admin = roles.findByCode(RoleCodes.ADMINISTRATOR).orElseThrow();
-        assertThat(admin.getFeatureIds()).hasSize(FeatureCodes.ALL.size());
+        assertThat(admin.getFunctionalityIds()).hasSize(FunctionalityCodes.ALL.size());
         AppUser apex = users.findByName("APEX").orElseThrow();
         assertThat(apex.getRoleIds()).containsExactly(admin.getId());
         assertThat(passwordEncoder.matches("123", apex.getPasswordHash())).isTrue();
@@ -75,7 +75,7 @@ class DomainFoundationTest {
         assertThat(ok.getStatusCode()).isEqualTo(HttpStatus.OK);
         String token = (String) ok.getBody().get("token");
         Map me = (Map) ok.getBody().get("me");
-        assertThat((List<String>) me.get("featureCodes")).containsAll(FeatureCodes.ALL);
+        assertThat((List<String>) me.get("functionalityCodes")).containsAll(FunctionalityCodes.ALL);
         assertThat((List<String>) me.get("roleCodes")).contains(RoleCodes.ADMINISTRATOR);
 
         ResponseEntity<Map> fetched = rest.exchange("/api/v1/auth/me", HttpMethod.GET, bearer(token, null), Map.class);
@@ -121,7 +121,7 @@ class DomainFoundationTest {
     }
 
     @Test
-    void uploadNeedsFeatureAndRejectsBadInput() {
+    void uploadNeedsFunctionalityAndRejectsBadInput() {
         String admin = (String) login("APEX", "123").getBody().get("token");
         RoleEntity commander = roles.findByCode(RoleCodes.COMMANDER).orElseThrow();
         if (users.findByName("viewer").isEmpty()) {
