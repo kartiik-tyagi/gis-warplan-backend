@@ -11,12 +11,12 @@
     <relativePath/>
   </parent>
 
-  <groupId>com.drdo.jayant</groupId>
-  <artifactId>jayant-backend</artifactId>
+  <groupId>com.gis.warplan</groupId>
+  <artifactId>gis-warplan-backend</artifactId>
   <version>0.1.0</version>
   <packaging>war</packaging>
-  <name>jayant-backend</name>
-  <description>DRDO Jayant backend foundation</description>
+  <name>gis-warplan-backend</name>
+  <description>GIS Warplan backend</description>
 
   <properties>
     <java.version>17</java.version>
@@ -155,7 +155,7 @@
   </dependencies>
 
   <build>
-    <finalName>jayant</finalName>
+    <finalName>gis-warplan</finalName>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>

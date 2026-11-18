@@ -1,14 +1,14 @@
 spring:
   application:
-    name: jayant-backend
+    name: gis-warplan-backend
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/jayant}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/gis_warplan}
     username: ${DB_USER:postgres}
     password: ${DB_PASSWORD:postgres}
   jpa:
     hibernate:
       # NOTE: update never renames/drops. After the team->side, feature->functionality and game-owned ORBAT
-      # change, drop the old "jayant" database once and restart (no migration files; see LegacySchemaCheckRunner).
+      # change, drop the old database once (previously named gis_warplan if present) and restart (no migration files; see LegacySchemaCheckRunner).
       ddl-auto: update
     open-in-view: false
     properties:
@@ -30,20 +30,20 @@ server:
     include-binding-errors: never
     include-exception: false
 
-jayant:
+warplan:
   api-base-path: /api/v1
   cors-origins:
     - http://127.0.0.1:5173
   db:
     auto-create: true
   jwt:
-    secret: ${JAYANT_JWT_SECRET:change-me}
+    secret: ${WARPLAN_JWT_SECRET:change-me}
     expiration: 90000
   icons:
     root: images/icon
 
 logging:
-  config: config/jayant.xml
+  config: config/gis-warplan.xml
 
 management:
   endpoints:
@@ -59,8 +59,8 @@ management:
 
 info:
   app:
-    name: Jayant
-    description: DRDO Jayant backend foundation
+    name: GIS Warplan
+    description: GIS Warplan backend
 
 springdoc:
   api-docs:

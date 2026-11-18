@@ -1,15 +1,15 @@
 spring:
   datasource:
-    url: ${DB_URL:jdbc:postgresql://localhost:5432/jayant}
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/gis_warplan}
     username: ${DB_USER:postgres}
     password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: update
 
-jayant:
+warplan:
   db:
     auto-create: true
 
 logging:
-  config: /etc/coraltelecom/jayant.xml
+  config: /etc/coraltelecom/gis-warplan.xml

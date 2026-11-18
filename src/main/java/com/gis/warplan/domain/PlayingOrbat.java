@@ -1,0 +1,63 @@
+package com.gis.warplan.domain;
+
+import java.time.Instant;
+import java.util.Map;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
+
+@Entity
+@Table(name = "playing_orbat")
+@Getter
+@Setter
+public class PlayingOrbat {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false, length = 160)
+    private String name;
+
+    private Long sideId;
+
+    private Long standardOrbatId;
+
+    /** Owning game (required). */
+    @Column(nullable = false)
+    private Long gameId;
+
+    /** Denormalized from the game; always set from {@code game.getScenarioId()}, never independently. */
+    private Long scenarioId;
+
+    @Version
+    private Long version;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    private Map<String, Object> orbatJson;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    private Map<String, Object> metadata;
+
+    @Column(nullable = false)
+    private Instant createdAt;
+
+    @Column(nullable = false)
+    private Instant updatedAt;
+
+    @PrePersist
+    void onCreate() {
+        Instant now = Instant.now();
+        createdAt = now;
+        updatedAt = now;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        updatedAt = Instant.now();
+    }
+}

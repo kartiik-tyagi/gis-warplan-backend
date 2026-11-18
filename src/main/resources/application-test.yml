@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:h2:mem:jayant;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    url: jdbc:h2:mem:gis_warplan;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
     driver-class-name: org.h2.Driver
     username: sa
     password:
@@ -16,11 +16,11 @@ spring:
     listener:
       auto-startup: false
 
-jayant:
+warplan:
   db:
     auto-create: false
   icons:
     root: target/test-icons
 
 logging:
-  config: config/jayant.xml
+  config: config/gis-warplan.xml
