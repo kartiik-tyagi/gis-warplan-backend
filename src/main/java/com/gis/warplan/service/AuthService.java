@@ -4,37 +4,47 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.gis.warplan.domain.AppUser;
+import com.gis.warplan.domain.Theme;
 import com.gis.warplan.domain.UserSession;
 import com.gis.warplan.repository.AppUserRepository;
+import com.gis.warplan.repository.ThemeRepository;
 import com.gis.warplan.repository.UserSessionRepository;
 import com.gis.warplan.security.JwtService;
 import com.gis.warplan.security.JwtService.IssuedToken;
 import com.gis.warplan.security.UserPrincipal;
 import com.gis.warplan.service.ActivationService.Activation;
 import com.gis.warplan.web.UnauthorizedException;
+import com.gis.warplan.web.UnavailableException;
 
 @Service
 public class AuthService {
 
     private static final String INVALID = "Invalid name or password.";
+    private static final String APP_NAME = "GIS Warplan";
+    private static final Logger log = LogManager.getLogger(AuthService.class);
 
     private final AppUserRepository users;
     private final UserSessionRepository sessions;
+    private final ThemeRepository themes;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AccessService access;
     private final AuditService audit;
     private final ActivationService activation;
 
-    public AuthService(AppUserRepository users, UserSessionRepository sessions, PasswordEncoder passwordEncoder,
-            JwtService jwtService, AccessService access, AuditService audit, ActivationService activation) {
+    public AuthService(AppUserRepository users, UserSessionRepository sessions, ThemeRepository themes,
+            PasswordEncoder passwordEncoder, JwtService jwtService, AccessService access, AuditService audit,
+            ActivationService activation) {
         this.users = users;
         this.sessions = sessions;
+        this.themes = themes;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.access = access;
@@ -42,10 +52,25 @@ public class AuthService {
         this.activation = activation;
     }
 
+    @Transactional(readOnly = true)
+    public LoginContext loginContext() {
+        Theme theme = themes.findFirstByDefaultThemeTrueOrderByIdAsc()
+                .orElseThrow(() -> {
+                    log.error("login_context.unavailable reason=no_default_theme");
+                    return new UnavailableException("The login theme is not configured.");
+                });
+        List<LoginUser> activeUsers = users.findByActiveTrueOrderByNameAsc().stream()
+                .map(user -> new LoginUser(user.getId(), user.getName()))
+                .toList();
+        log.info("login_context.served users={} themeId={}", activeUsers.size(), theme.getId());
+        return new LoginContext(APP_NAME, APP_NAME, activeUsers, theme);
+    }
+
     @Transactional
     public LoginResult login(String name, String password) {
         AppUser user = users.findByName(name).orElse(null);
         if (user == null || !user.isActive() || !passwordEncoder.matches(password, user.getPasswordHash())) {
+            log.warn("login.rejected namePresent={}", name != null && !name.isBlank());
             throw new UnauthorizedException(INVALID);
         }
         List<String> roleCodes = access.resolveRoleCodes(user);
@@ -107,6 +132,12 @@ public class AuthService {
     }
 
     public record LoginResult(String token, Instant expiresAt, MeResponse me) {
+    }
+
+    public record LoginUser(Long id, String name) {
+    }
+
+    public record LoginContext(String applicationName, String exerciseTitle, List<LoginUser> activeUsers, Theme loginTheme) {
     }
 
     public record MeResponse(

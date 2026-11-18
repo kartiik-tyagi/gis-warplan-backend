@@ -4,6 +4,8 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -30,6 +32,8 @@ import com.gis.warplan.web.NotFoundException;
  */
 @Service
 public class ScenarioService {
+
+    private static final Logger log = LogManager.getLogger(ScenarioService.class);
 
     public static final String GAME_DRAFT = "DRAFT";
     public static final String GAME_ACTIVE = "ACTIVE";
@@ -108,6 +112,7 @@ public class ScenarioService {
         access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
         Scenario scenario = findScenario(id);
         if (scenario.isActive()) {
+            log.warn("scenario.delete_rejected id={} reason=active", id);
             throw new ConflictException("The active scenario cannot be deleted.");
         }
         for (Game game : games.findByScenarioId(id)) {
@@ -175,6 +180,7 @@ public class ScenarioService {
         access.requireFunctionality(FunctionalityCodes.MANAGE_GAME);
         Game game = findGame(id);
         if (game.isActive()) {
+            log.warn("game.delete_rejected id={} reason=active", id);
             throw new ConflictException("The active game cannot be deleted.");
         }
         purgeGame(game);

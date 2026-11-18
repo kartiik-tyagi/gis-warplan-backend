@@ -17,5 +17,7 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 
     List<AppUser> findByStandardNodeIdIsNotNull();
 
+    List<AppUser> findByActiveTrueOrderByNameAsc();
+
     long countByThemeId(Long themeId);
 }

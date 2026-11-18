@@ -1,5 +1,9 @@
 package com.gis.warplan.web;
 
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -7,10 +11,13 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.gis.warplan.domain.Theme;
 import com.gis.warplan.security.UserPrincipal;
 import com.gis.warplan.service.AccessService;
 import com.gis.warplan.service.AuthService;
+import com.gis.warplan.service.AuthService.LoginContext;
 import com.gis.warplan.service.AuthService.LoginResult;
+import com.gis.warplan.service.AuthService.LoginUser;
 import com.gis.warplan.service.AuthService.MeResponse;
 
 import jakarta.validation.Valid;
@@ -26,6 +33,12 @@ public class AuthController {
     public AuthController(AuthService authService, AccessService access) {
         this.authService = authService;
         this.access = access;
+    }
+
+    @GetMapping("/login-context")
+    public LoginContextResponse loginContext() {
+        LoginContext context = authService.loginContext();
+        return LoginContextResponse.of(context);
     }
 
     @PostMapping("/login")
@@ -64,5 +77,35 @@ public class AuthController {
     }
 
     public record LoginResponse(String token, String tokenType, String expiresAt, MeResponse me) {
+    }
+
+    public record LoginContextResponse(
+            String applicationName,
+            String exerciseTitle,
+            List<LoginUser> activeUsers,
+            ThemeResponse loginTheme) {
+
+        static LoginContextResponse of(LoginContext context) {
+            return new LoginContextResponse(
+                    context.applicationName(),
+                    context.exerciseTitle(),
+                    context.activeUsers(),
+                    ThemeResponse.of(context.loginTheme()));
+        }
+    }
+
+    public record ThemeResponse(
+            Long id,
+            String name,
+            String description,
+            boolean defaultTheme,
+            Map<String, Object> configJson,
+            Instant createdAt,
+            Instant updatedAt) {
+
+        static ThemeResponse of(Theme theme) {
+            return new ThemeResponse(theme.getId(), theme.getName(), theme.getDescription(), theme.isDefaultTheme(),
+                    theme.getConfigJson(), theme.getCreatedAt(), theme.getUpdatedAt());
+        }
     }
 }
