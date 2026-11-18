@@ -80,8 +80,7 @@ public class MapCatalogSeedService {
 
         if (views.findFirstByOrderByIdAsc().isEmpty()) {
             MapViewDefaults view = new MapViewDefaults();
-            view.setBasemapSource(seed.view().basemapSource());
-            view.setOsmUrl(seed.view().osmUrl());
+            view.setBasemapSource("wms");
             view.setCenterLon(seed.view().centerLon());
             view.setCenterLat(seed.view().centerLat());
             view.setZoom(seed.view().zoom());
@@ -108,8 +107,7 @@ public class MapCatalogSeedService {
             String workspaceDefault, boolean enabled, boolean defaultServer) {
     }
 
-    public record ViewSeed(String basemapSource, String osmUrl, double centerLon, double centerLat, int zoom,
-            int minZoom, int maxZoom) {
+    public record ViewSeed(double centerLon, double centerLat, int zoom, int minZoom, int maxZoom) {
     }
 
     public record LayerSeed(String code, String label, String groupName, String wmsLayers, String format,

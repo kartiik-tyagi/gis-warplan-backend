@@ -120,9 +120,8 @@ public class MapController {
     @PutMapping("/view-defaults")
     public MapViewDefaultsResponse updateViewDefaults(@Valid @RequestBody MapViewDefaultsRequest request) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_MAP);
-        return MapViewDefaultsResponse.of(catalog.updateViewDefaults(request.basemapSource(), request.osmUrl(),
-                request.centerLon(), request.centerLat(), request.zoom(), request.minZoom(), request.maxZoom(),
-                request.defaultGisServerId()));
+        return MapViewDefaultsResponse.of(catalog.updateViewDefaults(request.centerLon(), request.centerLat(),
+                request.zoom(), request.minZoom(), request.maxZoom(), request.defaultGisServerId()));
     }
 
     public record GisServerRequest(
@@ -156,8 +155,6 @@ public class MapController {
     }
 
     public record MapViewDefaultsRequest(
-            @Size(max = 16) String basemapSource,
-            @Size(max = 500) String osmUrl,
             Double centerLon,
             Double centerLat,
             Integer zoom,
@@ -206,13 +203,12 @@ public class MapController {
         }
     }
 
-    public record MapViewDefaultsResponse(Long id, String basemapSource, String osmUrl, double centerLon,
-            double centerLat, int zoom, int minZoom, int maxZoom, Long defaultGisServerId, Instant createdAt,
-            Instant updatedAt) {
+    public record MapViewDefaultsResponse(Long id, double centerLon, double centerLat, int zoom, int minZoom,
+            int maxZoom, Long defaultGisServerId, Instant createdAt, Instant updatedAt) {
         static MapViewDefaultsResponse of(MapViewDefaults view) {
-            return new MapViewDefaultsResponse(view.getId(), view.getBasemapSource(), view.getOsmUrl(),
-                    view.getCenterLon(), view.getCenterLat(), view.getZoom(), view.getMinZoom(), view.getMaxZoom(),
-                    view.getDefaultGisServerId(), view.getCreatedAt(), view.getUpdatedAt());
+            return new MapViewDefaultsResponse(view.getId(), view.getCenterLon(), view.getCenterLat(), view.getZoom(),
+                    view.getMinZoom(), view.getMaxZoom(), view.getDefaultGisServerId(), view.getCreatedAt(),
+                    view.getUpdatedAt());
         }
     }
 }

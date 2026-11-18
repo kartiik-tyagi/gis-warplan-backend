@@ -10,8 +10,6 @@
     "defaultServer": true
   },
   "view": {
-    "basemapSource": "wms",
-    "osmUrl": "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     "centerLon": 82,
     "centerLat": 24.5,
     "zoom": 5,

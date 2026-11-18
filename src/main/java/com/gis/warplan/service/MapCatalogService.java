@@ -150,18 +150,13 @@ public class MapCatalogService {
     }
 
     @Transactional
-    public MapViewDefaults updateViewDefaults(String basemapSource, String osmUrl, Double centerLon, Double centerLat,
-            Integer zoom, Integer minZoom, Integer maxZoom, Long defaultGisServerId) {
+    public MapViewDefaults updateViewDefaults(Double centerLon, Double centerLat, Integer zoom, Integer minZoom,
+            Integer maxZoom, Long defaultGisServerId) {
         MapViewDefaults view = views.findFirstByOrderByIdAsc().orElseGet(MapViewDefaults::new);
-        String source = basemapSource == null || basemapSource.isBlank() ? "wms" : basemapSource.trim().toLowerCase();
-        if (!source.equals("wms") && !source.equals("osm")) {
-            throw new BadRequestException("Basemap source must be wms or osm.");
-        }
         if (defaultGisServerId != null) {
             requireServer(defaultGisServerId);
         }
-        view.setBasemapSource(source);
-        view.setOsmUrl(osmUrl);
+        view.setBasemapSource("wms");
         view.setCenterLon(centerLon == null ? view.getCenterLon() : centerLon);
         view.setCenterLat(centerLat == null ? view.getCenterLat() : centerLat);
         view.setZoom(zoom == null ? (view.getId() == null ? 5 : view.getZoom()) : zoom);

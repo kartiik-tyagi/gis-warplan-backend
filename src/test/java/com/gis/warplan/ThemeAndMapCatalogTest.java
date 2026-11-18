@@ -69,7 +69,9 @@ class ThemeAndMapCatalogTest {
         assertThat(server.get("wmsUrl")).isEqualTo("http://127.0.0.1:8080/geoserver/wms");
         assertThat(layers).hasSizeGreaterThanOrEqualTo(5);
         assertThat(layers.stream().anyMatch(layer -> "places".equals(layer.get("code")))).isTrue();
-        assertThat(view.get("basemapSource")).isEqualTo("wms");
+        assertThat(view.get("centerLon")).isEqualTo(82.0);
+        assertThat(view.containsKey("osmUrl")).isFalse();
+        assertThat(view.containsKey("basemapSource")).isFalse();
 
         Long serverId = ((Number) server.get("id")).longValue();
         String suffix = UUID.randomUUID().toString().substring(0, 6);

@@ -16,11 +16,9 @@ public class MapViewDefaults {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Always GeoServer WMS; retained so existing databases keep a non-null column. */
     @Column(nullable = false, length = 16)
     private String basemapSource = "wms";
-
-    @Column(length = 500)
-    private String osmUrl;
 
     @Column(nullable = false)
     private double centerLon;
@@ -50,10 +48,12 @@ public class MapViewDefaults {
         Instant now = Instant.now();
         createdAt = now;
         updatedAt = now;
+        basemapSource = "wms";
     }
 
     @PreUpdate
     void onUpdate() {
         updatedAt = Instant.now();
+        basemapSource = "wms";
     }
 }
