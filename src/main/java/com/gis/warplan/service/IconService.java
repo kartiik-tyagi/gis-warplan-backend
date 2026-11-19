@@ -23,8 +23,7 @@ import org.springframework.stereotype.Service;
 import com.gis.warplan.config.WarplanProperties;
 import com.gis.warplan.web.BadRequestException;
 import com.gis.warplan.web.ConflictException;
-
-import jakarta.annotation.PostConstruct;
+import com.gis.warplan.web.UnavailableException;
 
 /**
  * File-backed icon store. Every client supplied path is resolved against the configured root and
@@ -51,28 +50,49 @@ public class IconService {
             "square.svg", svg("<rect x=\"2\" y=\"2\" width=\"12\" height=\"12\" fill=\"#1f4e79\"/>"),
             "triangle.svg", svg("<polygon points=\"8,2 14,14 2,14\" fill=\"#a23b2a\"/>"));
 
-    private final Path root;
+    private final AssetManagementService assets;
+    private final String fallbackRoot;
 
-    public IconService(WarplanProperties properties) {
-        this.root = Paths.get(properties.getIcons().getRoot()).toAbsolutePath().normalize();
+    public IconService(WarplanProperties properties, AssetManagementService assets) {
+        this.assets = assets;
+        this.fallbackRoot = properties.getIcons().getRoot();
     }
 
-    @PostConstruct
-    public void ensureRoot() {
+    /** The current base icon folder, from the asset_management row (falling back to the configured root). */
+    private Path root() {
+        String configured = assets.path();
+        String value = configured == null || configured.isBlank() ? fallbackRoot : configured;
+        return Paths.get(value).toAbsolutePath().normalize();
+    }
+
+    /**
+     * Ensures the base icon folder exists. A bad configured path must not return a 500 or abort startup,
+     * so this surfaces a clean, actionable error that the Icons form shows.
+     */
+    private void ensureRoot(Path root) {
         try {
             Files.createDirectories(root);
         } catch (IOException exception) {
-            throw new IllegalStateException("Icon root could not be created: " + root, exception);
+            log.warn("icon.root_unavailable path={} reason={}", root, exception.getMessage());
+            throw new UnavailableException("The icon folder is not available: " + root
+                    + ". Set a valid base icon folder in Icons administration.");
         }
     }
 
     public Path getRoot() {
-        return root;
+        return root();
     }
 
-    /** Writes the starter icons that are not on disk yet. */
+    /** Writes the starter icons that are not on disk yet. Never fails startup: a bad path is logged and skipped. */
     public void seedDefaults() {
-        ensureRoot();
+        Path root;
+        try {
+            root = root();
+            ensureRoot(root);
+        } catch (RuntimeException exception) {
+            log.warn("icon.seed_skipped reason={}", exception.getMessage());
+            return;
+        }
         DEFAULT_ICONS.forEach((name, content) -> {
             Path target = root.resolve(name);
             if (Files.notExists(target)) {
@@ -82,22 +102,24 @@ public class IconService {
                 } catch (FileAlreadyExistsException ignored) {
                     // created concurrently
                 } catch (IOException exception) {
-                    throw new IllegalStateException("Icon could not be seeded: " + name, exception);
+                    log.warn("icon.seed_failed name={} reason={}", name, exception.getMessage());
                 }
             }
         });
     }
 
     public IconNode tree() {
-        ensureRoot();
-        return node(root, "");
+        Path root = root();
+        ensureRoot(root);
+        return node(root, "", assets.labels());
     }
 
     public IconContent read(String relativePath) {
         if (relativePath == null || relativePath.isBlank()) {
             throw new BadRequestException("Icon path is required.");
         }
-        Path file = resolveExisting(relativePath);
+        Path root = root();
+        Path file = resolveExisting(root, relativePath);
         if (!Files.isRegularFile(file)) {
             throw new BadRequestException("Icon path is not a file.");
         }
@@ -130,7 +152,8 @@ public class IconService {
         if (type.getSubtype().equals("svg+xml")) {
             rejectUnsafeSvg(content);
         }
-        Path directoryPath = resolveForWrite(directory);
+        Path root = root();
+        Path directoryPath = resolveForWrite(root, directory);
         Path target = directoryPath.resolve(fileName).normalize();
         if (!target.startsWith(root)) {
             throw new BadRequestException("Icon path is not valid.");
@@ -143,14 +166,15 @@ public class IconService {
         } catch (IOException exception) {
             throw new IllegalStateException("Icon could not be stored", exception);
         }
-        return relative(target);
+        return relative(root, target);
     }
 
-    private IconNode node(Path path, String relativePath) {
+    private IconNode node(Path path, String relativePath, Map<String, String> labels) {
         boolean directory = Files.isDirectory(path);
         String name = relativePath.isEmpty() ? "" : path.getFileName().toString();
         if (!directory) {
-            return new IconNode(name, relativePath, "file", List.of());
+            String label = labels.getOrDefault(relativePath, name);
+            return new IconNode(name, relativePath, "file", label, List.of());
         }
         List<IconNode> children = new ArrayList<>();
         try (Stream<Path> stream = Files.list(path)) {
@@ -160,16 +184,16 @@ public class IconService {
                             .thenComparing(child -> child.getFileName().toString().toLowerCase(Locale.ROOT)))
                     .forEach(child -> {
                         String childName = child.getFileName().toString();
-                        children.add(node(child, relativePath.isEmpty() ? childName : relativePath + "/" + childName));
+                        children.add(node(child, relativePath.isEmpty() ? childName : relativePath + "/" + childName, labels));
                     });
         } catch (IOException exception) {
             throw new IllegalStateException("Icons could not be listed", exception);
         }
-        return new IconNode(name, relativePath, "directory", children);
+        return new IconNode(name, relativePath, "directory", name, children);
     }
 
-    private Path resolveExisting(String relativePath) {
-        Path candidate = resolveLexically(relativePath);
+    private Path resolveExisting(Path root, String relativePath) {
+        Path candidate = resolveLexically(root, relativePath);
         if (Files.notExists(candidate)) {
             throw new BadRequestException("Icon was not found.");
         }
@@ -184,8 +208,8 @@ public class IconService {
         }
     }
 
-    private Path resolveForWrite(String directory) {
-        Path candidate = resolveLexically(directory);
+    private Path resolveForWrite(Path root, String directory) {
+        Path candidate = resolveLexically(root, directory);
         Path existing = candidate;
         while (existing != null && Files.notExists(existing)) {
             existing = existing.getParent();
@@ -200,7 +224,7 @@ public class IconService {
         return candidate;
     }
 
-    private Path resolveLexically(String relativePath) {
+    private Path resolveLexically(Path root, String relativePath) {
         String value = relativePath == null ? "" : relativePath.trim();
         if (value.isEmpty()) {
             return root;
@@ -225,7 +249,7 @@ public class IconService {
         return current;
     }
 
-    private String relative(Path path) {
+    private String relative(Path root, Path path) {
         return root.relativize(path).toString().replace('\\', '/');
     }
 
@@ -250,7 +274,7 @@ public class IconService {
                 + body + "</svg>\n";
     }
 
-    public record IconNode(String name, String path, String type, List<IconNode> children) {
+    public record IconNode(String name, String path, String type, String label, List<IconNode> children) {
     }
 
     public record IconContent(byte[] bytes, MediaType mediaType) {
