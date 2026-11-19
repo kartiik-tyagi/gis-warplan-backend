@@ -45,14 +45,10 @@ public class ActivationService {
         if (access.isAdministrator(user)) {
             return new Activation(true, null);
         }
-        List<Scenario> activeScenarios = scenarios.findByActiveTrue();
-        if (activeScenarios.isEmpty()) {
+        if (activeScenario().isEmpty()) {
             return new Activation(false, NO_ACTIVE_SCENARIO);
         }
-        Scenario scenario = activeScenarios.get(0);
-        Optional<Game> activeGame = games.findByActiveTrue().stream()
-                .filter(game -> scenario.getId().equals(game.getScenarioId()))
-                .findFirst();
+        Optional<Game> activeGame = activeGame();
         if (activeGame.isEmpty()) {
             return new Activation(false, NO_ACTIVE_GAME);
         }
@@ -68,6 +64,26 @@ public class ActivationService {
             return new Activation(false, ORBAT_NOT_FINALIZED);
         }
         return new Activation(true, null);
+    }
+
+    /** The active scenario, when one is selected. */
+    @Transactional(readOnly = true)
+    public Optional<Scenario> activeScenario() {
+        List<Scenario> active = scenarios.findByActiveTrue();
+        return active.isEmpty() ? Optional.empty() : Optional.of(active.get(0));
+    }
+
+    /** The active game of the active scenario. Empty when either is missing. */
+    @Transactional(readOnly = true)
+    public Optional<Game> activeGame() {
+        Optional<Scenario> scenario = activeScenario();
+        if (scenario.isEmpty()) {
+            return Optional.empty();
+        }
+        Long scenarioId = scenario.get().getId();
+        return games.findByActiveTrue().stream()
+                .filter(game -> scenarioId.equals(game.getScenarioId()))
+                .findFirst();
     }
 
     public static boolean isFinalized(PlayingOrbat orbat) {

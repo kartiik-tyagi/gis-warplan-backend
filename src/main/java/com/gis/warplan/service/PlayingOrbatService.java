@@ -2,6 +2,7 @@ package com.gis.warplan.service;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -101,10 +102,8 @@ public class PlayingOrbatService {
         if (!SideService.KIND_COUNTRY.equals(side.getKind())) {
             throw new BadRequestException("Use the alliance endpoint to create an alliance ORBAT.");
         }
+        requireAvailable(gameId, side);
         StandardOrbat standard = standardOrbat(side);
-        if (playingOrbats.findFirstByGameIdAndSideId(gameId, sideId).isPresent()) {
-            throw new ConflictException("This side already has a playing ORBAT in the game.");
-        }
         PlayingOrbat orbat = new PlayingOrbat();
         orbat.setName(side.getName());
         orbat.setSideId(sideId);
@@ -131,11 +130,18 @@ public class PlayingOrbatService {
         if (!Objects.equals(orbat.getVersion(), version)) {
             throw new ConflictException("The playing ORBAT was changed by someone else. Reload and try again.");
         }
+        boolean wasFinalized = finalized(orbat.getMetadata());
         Map<String, Object> merged = new LinkedHashMap<>(orbat.getMetadata() == null ? Map.of() : orbat.getMetadata());
         if (metadata != null) {
             merged.putAll(metadata);
         }
         String status = status(merged);
+        if (wasFinalized) {
+            if (orbatJson != null || !OrbatSupport.STATUS_DRAFT.equals(status)) {
+                throw new ConflictException(
+                        "Re-edit this playing ORBAT before changing it. Finalize it again when the edits are done.");
+            }
+        }
         merged.put("status", status);
         if (orbatJson != null) {
             support.validate(orbatJson);
@@ -151,7 +157,8 @@ public class PlayingOrbatService {
             support.validate(saved.getOrbatJson());
             assigned = assignUsers(saved);
         }
-        audit.record(OrbatSupport.STATUS_FINALIZED.equals(status) ? "FINALIZE" : "UPDATE", "PlayingOrbat",
+        String action = OrbatSupport.STATUS_FINALIZED.equals(status) ? "FINALIZE" : wasFinalized ? "REOPEN" : "UPDATE";
+        audit.record(action, "PlayingOrbat",
                 saved.getId(), "Playing ORBAT " + saved.getName() + " saved as " + status,
                 Map.of("gameId", gameId, "scenarioId", String.valueOf(saved.getScenarioId()), "status", status, "version",
                         saved.getVersion(), "usersAssigned", assigned));
@@ -163,13 +170,22 @@ public class PlayingOrbatService {
         access.requireAnyFunctionality(FunctionalityCodes.MANAGE_PLAYING_ORBAT, FunctionalityCodes.MANAGE_ALLIANCE);
         requireGame(gameId);
         PlayingOrbat orbat = find(gameId, id);
+        Side side = orbat.getSideId() == null ? null : sides.findById(orbat.getSideId()).orElse(null);
+        boolean alliance = side != null && SideService.KIND_ALLIANCE.equals(side.getKind());
         for (AppUser assigned : users.findByPlayingOrbatId(id)) {
             assigned.setPlayingOrbatId(null);
             assigned.setPlayingNodeId(null);
             users.save(assigned);
         }
         playingOrbats.delete(orbat);
-        audit.record("DELETE", "PlayingOrbat", id, "Playing ORBAT " + orbat.getName() + " deleted", Map.of());
+        if (alliance) {
+            allianceMembers.deleteAll(allianceMembers.findByAllianceSideId(side.getId()));
+            sides.delete(side);
+        }
+        audit.record("DELETE", "PlayingOrbat", id,
+                alliance ? "Playing ORBAT " + orbat.getName() + " deleted and the alliance was dissolved"
+                        : "Playing ORBAT " + orbat.getName() + " deleted",
+                Map.of());
     }
 
     // ---- alliances
@@ -190,6 +206,7 @@ public class PlayingOrbatService {
             if (!SideService.KIND_COUNTRY.equals(member.getKind())) {
                 throw new BadRequestException("Side " + member.getName() + " is not a country side.");
             }
+            requireAvailable(gameId, member);
             memberSides.add(member);
         }
         Map<Long, StandardOrbat> standards = new HashMap<>();
@@ -268,6 +285,7 @@ public class PlayingOrbatService {
         }
         boolean alliance = orbat.getSideId() != null && sides.findById(orbat.getSideId())
                 .map(side -> SideService.KIND_ALLIANCE.equals(side.getKind())).orElse(false);
+        Set<Long> kept = new HashSet<>();
         int assigned = 0;
         for (AppUser user : users.findByStandardNodeIdIsNotNull()) {
             String playingNode = bySource.get(user.getStandardNodeId());
@@ -280,9 +298,39 @@ public class PlayingOrbatService {
             user.setPlayingOrbatId(orbat.getId());
             user.setPlayingNodeId(playingNode);
             users.save(user);
+            kept.add(user.getId());
             assigned++;
         }
+        for (AppUser user : users.findByPlayingOrbatId(orbat.getId())) {
+            if (kept.contains(user.getId())) {
+                continue;
+            }
+            user.setPlayingOrbatId(null);
+            user.setPlayingNodeId(null);
+            users.save(user);
+        }
         return assigned;
+    }
+
+    /**
+     * A country plays a game in one way: its own playing ORBAT, or inside one alliance. Either row fills the slot.
+     */
+    private void requireAvailable(Long gameId, Side side) {
+        if (playingOrbats.findFirstByGameIdAndSideId(gameId, side.getId()).isPresent()) {
+            throw new ConflictException(side.getName() + " already has its own playing ORBAT in this game.");
+        }
+        for (AllianceMember row : allianceMembers.findByMemberSideId(side.getId())) {
+            boolean here = sides.findById(row.getAllianceSideId())
+                    .map(alliance -> gameId.equals(alliance.getGameId()))
+                    .orElse(false);
+            if (here) {
+                throw new ConflictException(side.getName() + " already plays in this game as part of an alliance.");
+            }
+        }
+    }
+
+    private static boolean finalized(Map<String, Object> metadata) {
+        return metadata != null && OrbatSupport.STATUS_FINALIZED.equals(metadata.get("status"));
     }
 
     private boolean playsElsewhere(AppUser user, PlayingOrbat orbat) {
