@@ -80,11 +80,15 @@ public class NodeTypeService {
             throw new ConflictException("A node type with this code already exists.");
         });
         checkIcon(iconPath);
-        type.setCode(normalized);
         type.setName(name.trim());
         type.setDescription(blankToNull(description));
         type.setIconPath(blankToNull(iconPath));
-        type.setProperties(properties);
+        if (seeded(type)) {
+            // The catalogue owns the code, parents and attributes. The screen may change the name and the icon.
+        } else {
+            type.setCode(normalized);
+            type.setProperties(properties);
+        }
         access.currentPrincipal().ifPresent(principal -> type.setUpdatedBy(principal.userId()));
         NodeType saved = nodeTypes.save(type);
         log.info("node_type.updated id={} code={}", saved.getId(), saved.getCode());
@@ -95,6 +99,9 @@ public class NodeTypeService {
     @Transactional
     public void delete(Long id) {
         NodeType type = get(id);
+        if (seeded(type)) {
+            throw new ConflictException("A seeded node type cannot be deleted.");
+        }
         if (inUse(id)) {
             throw new ConflictException("The node type is used by an ORBAT.");
         }
@@ -120,6 +127,10 @@ public class NodeTypeService {
     private static boolean usesType(Map<String, Object> orbatJson, Long id) {
         return OrbatSupport.nodesOf(orbatJson).stream()
                 .anyMatch(node -> id.equals(OrbatSupport.asLong(node.get("nodeTypeId"))));
+    }
+
+    private static boolean seeded(NodeType type) {
+        return type.getProperties() != null && Boolean.TRUE.equals(type.getProperties().get("seeded"));
     }
 
     private void checkIcon(String iconPath) {
