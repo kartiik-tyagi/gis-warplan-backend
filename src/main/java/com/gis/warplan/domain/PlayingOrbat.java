@@ -49,6 +49,8 @@ public class PlayingOrbat {
     @Column(nullable = false)
     private Instant updatedAt;
 
+    private Long updatedBy;
+
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();

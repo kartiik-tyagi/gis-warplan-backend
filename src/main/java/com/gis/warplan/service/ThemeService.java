@@ -3,13 +3,14 @@ package com.gis.warplan.service;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.gis.warplan.domain.Theme;
 import com.gis.warplan.repository.AppUserRepository;
-import com.gis.warplan.repository.ScenarioRepository;
 import com.gis.warplan.repository.SideRepository;
 import com.gis.warplan.repository.ThemeRepository;
 import com.gis.warplan.web.BadRequestException;
@@ -19,17 +20,16 @@ import com.gis.warplan.web.NotFoundException;
 @Service
 public class ThemeService {
 
+    private static final Logger log = LogManager.getLogger(ThemeService.class);
+
     private final ThemeRepository themes;
     private final AppUserRepository users;
-    private final ScenarioRepository scenarios;
     private final SideRepository sides;
     private final AuditService audit;
 
-    public ThemeService(ThemeRepository themes, AppUserRepository users, ScenarioRepository scenarios,
-            SideRepository sides, AuditService audit) {
+    public ThemeService(ThemeRepository themes, AppUserRepository users, SideRepository sides, AuditService audit) {
         this.themes = themes;
         this.users = users;
-        this.scenarios = scenarios;
         this.sides = sides;
         this.audit = audit;
     }
@@ -60,6 +60,7 @@ public class ThemeService {
         }
         theme.setDefaultTheme(makeDefault);
         Theme saved = themes.save(theme);
+        log.info("theme.created id={} name={}", saved.getId(), saved.getName());
         audit.record("CREATE", "Theme", saved.getId(), "Theme " + saved.getName() + " created", Map.of());
         return saved;
     }
@@ -82,6 +83,7 @@ public class ThemeService {
         theme.setDescription(description);
         theme.setConfigJson(configJson);
         Theme saved = themes.save(theme);
+        log.info("theme.updated id={}", saved.getId());
         audit.record("UPDATE", "Theme", saved.getId(), "Theme " + saved.getName() + " updated", Map.of());
         return saved;
     }
@@ -92,10 +94,11 @@ public class ThemeService {
         if (theme.isDefaultTheme()) {
             throw new ConflictException("The default theme cannot be deleted.");
         }
-        if (users.countByThemeId(id) > 0 || scenarios.countByThemeId(id) > 0 || sides.countByThemeId(id) > 0) {
+        if (users.countByThemeId(id) > 0 || sides.countByThemeId(id) > 0) {
             throw new ConflictException("The theme is in use.");
         }
         themes.delete(theme);
+        log.info("theme.deleted id={}", id);
         audit.record("DELETE", "Theme", id, "Theme " + theme.getName() + " deleted", Map.of());
     }
 

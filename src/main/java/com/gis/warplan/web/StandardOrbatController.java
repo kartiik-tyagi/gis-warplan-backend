@@ -54,11 +54,13 @@ public class StandardOrbatController {
     }
 
     public record StandardOrbatResponse(Long id, String name, Long sideId, Long version,
-            Map<String, Object> orbatJson, Map<String, Object> metadata, Instant createdAt, Instant updatedAt) {
+            Map<String, Object> orbatJson, Map<String, Object> metadata, Instant createdAt, Instant updatedAt,
+            Long updatedBy) {
 
         static StandardOrbatResponse of(StandardOrbat orbat) {
             return new StandardOrbatResponse(orbat.getId(), orbat.getName(), orbat.getSideId(), orbat.getVersion(),
-                    orbat.getOrbatJson(), orbat.getMetadata(), orbat.getCreatedAt(), orbat.getUpdatedAt());
+                    orbat.getOrbatJson(), orbat.getMetadata(), orbat.getCreatedAt(), orbat.getUpdatedAt(),
+                    orbat.getUpdatedBy());
         }
     }
 }

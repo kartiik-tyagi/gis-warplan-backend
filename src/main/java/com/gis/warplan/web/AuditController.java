@@ -60,7 +60,7 @@ public class AuditController {
         Specification<AuditLog> filter = (root, query, builder) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (userId != null) {
-                predicates.add(builder.equal(root.get("userId"), userId));
+                predicates.add(builder.equal(root.get("actorUserId"), userId));
             }
             if (action != null && !action.isBlank()) {
                 predicates.add(builder.equal(root.get("action"), action.trim()));
@@ -73,8 +73,15 @@ public class AuditController {
             }
             return builder.and(predicates.toArray(new Predicate[0]));
         };
-        Page<AuditLog> result = logs.findAll(filter, pageable(page, size, "createdAt"));
-        return PageResponse.of(result, AuditLogResponse::of);
+        Page<AuditLog> result = logs.findAll(filter, pageable(page, size, "occurredAt"));
+        Map<Long, String> names = new HashMap<>();
+        for (AuditLog entry : result) {
+            if (entry.getActorUserId() != null) {
+                names.computeIfAbsent(entry.getActorUserId(),
+                        id -> users.findById(id).map(AppUser::getName).orElse(null));
+            }
+        }
+        return PageResponse.of(result, entry -> AuditLogResponse.of(entry, names.get(entry.getActorUserId())));
     }
 
     /** Sign-in sessions. The token id is never returned. */
@@ -85,7 +92,7 @@ public class AuditController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         access.requireFunctionality(FunctionalityCodes.VIEW_AUDIT);
-        var pageable = pageable(page, size, "issuedAt");
+        var pageable = pageable(page, size, "loginAt");
         Page<UserSession> result = userId == null ? sessions.findAll(pageable) : sessions.findByUserId(userId, pageable);
         Map<Long, String> names = new HashMap<>();
         for (UserSession session : result) {
@@ -94,8 +101,10 @@ public class AuditController {
         }
         Instant now = Instant.now();
         return PageResponse.of(result, session -> new SessionResponse(session.getId(), session.getUserId(),
-                names.get(session.getUserId()), session.getIssuedAt(), session.getExpiresAt(),
-                session.getRevokedAt(), session.getRevokedAt() == null && session.getExpiresAt().isAfter(now)));
+                names.get(session.getUserId()), session.getLoginAt(), session.getLogoutAt(), session.isSuccess(),
+                session.getFailureReason(), session.getIpAddress(), session.getUserAgent(), session.getLocationText(),
+                session.getExpiresAt(), session.getRevokedAt(),
+                session.getRevokedAt() == null && session.getExpiresAt().isAfter(now)));
     }
 
     private static PageRequest pageable(int page, int size, String sortField) {
@@ -113,16 +122,19 @@ public class AuditController {
         }
     }
 
-    public record AuditLogResponse(Long id, Long userId, String userName, String action, String entityType,
-            Long entityId, String summary, Map<String, Object> detail, Instant createdAt) {
+    public record AuditLogResponse(Long id, Instant occurredAt, Long actorUserId, String actorUserName, Long sessionId,
+            String action, String entityType, Long entityId, String summary, Map<String, Object> detailJson,
+            String ipAddress, String userAgent, String requestId) {
 
-        static AuditLogResponse of(AuditLog log) {
-            return new AuditLogResponse(log.getId(), log.getUserId(), log.getUserName(), log.getAction(),
-                    log.getEntityType(), log.getEntityId(), log.getSummary(), log.getDetail(), log.getCreatedAt());
+        static AuditLogResponse of(AuditLog log, String actorUserName) {
+            return new AuditLogResponse(log.getId(), log.getOccurredAt(), log.getActorUserId(), actorUserName,
+                    log.getSessionId(), log.getAction(), log.getEntityType(), log.getEntityId(), log.getSummary(),
+                    log.getDetailJson(), log.getIpAddress(), log.getUserAgent(), log.getRequestId());
         }
     }
 
-    public record SessionResponse(Long id, Long userId, String userName, Instant issuedAt, Instant expiresAt,
-            Instant revokedAt, boolean active) {
+    public record SessionResponse(Long id, Long userId, String userName, Instant loginAt, Instant logoutAt,
+            boolean success, String failureReason, String ipAddress, String userAgent, String locationText,
+            Instant expiresAt, Instant revokedAt, boolean active) {
     }
 }

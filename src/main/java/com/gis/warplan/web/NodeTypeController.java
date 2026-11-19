@@ -53,15 +53,16 @@ public class NodeTypeController {
     @PostMapping
     public ResponseEntity<NodeTypeResponse> create(@Valid @RequestBody NodeTypeRequest request) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_NODE_TYPES);
-        NodeType type = nodeTypes.create(request.code(), request.name(), request.iconPath(), request.properties());
+        NodeType type = nodeTypes.create(request.code(), request.name(), request.description(), request.iconPath(),
+                request.properties());
         return ResponseEntity.status(HttpStatus.CREATED).body(NodeTypeResponse.of(type));
     }
 
     @PutMapping("/{id}")
     public NodeTypeResponse update(@PathVariable Long id, @Valid @RequestBody NodeTypeRequest request) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_NODE_TYPES);
-        return NodeTypeResponse.of(nodeTypes.update(id, request.code(), request.name(), request.iconPath(),
-                request.properties()));
+        return NodeTypeResponse.of(nodeTypes.update(id, request.code(), request.name(), request.description(),
+                request.iconPath(), request.properties()));
     }
 
     @DeleteMapping("/{id}")
@@ -74,16 +75,18 @@ public class NodeTypeController {
     public record NodeTypeRequest(
             @NotBlank @Size(max = 60) @Pattern(regexp = "^[A-Za-z][A-Za-z0-9_]*$") String code,
             @NotBlank @Size(max = 120) String name,
+            @Size(max = 500) String description,
             @Size(max = 300) String iconPath,
             Map<String, Object> properties) {
     }
 
-    public record NodeTypeResponse(Long id, String code, String name, String iconPath, Map<String, Object> properties,
-            Instant createdAt, Instant updatedAt) {
+    public record NodeTypeResponse(Long id, String code, String name, String description, String iconPath,
+            Map<String, Object> properties, Instant createdAt, Instant updatedAt, Long createdBy, Long updatedBy) {
 
         static NodeTypeResponse of(NodeType type) {
-            return new NodeTypeResponse(type.getId(), type.getCode(), type.getName(), type.getIconPath(),
-                    type.getProperties(), type.getCreatedAt(), type.getUpdatedAt());
+            return new NodeTypeResponse(type.getId(), type.getCode(), type.getName(), type.getDescription(),
+                    type.getIconPath(), type.getProperties(), type.getCreatedAt(), type.getUpdatedAt(),
+                    type.getCreatedBy(), type.getUpdatedBy());
         }
     }
 }

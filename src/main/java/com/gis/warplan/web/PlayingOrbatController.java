@@ -90,12 +90,13 @@ public class PlayingOrbatController {
 
     public record PlayingOrbatResponse(Long id, String name, Long sideId, Long standardOrbatId, Long gameId,
             Long scenarioId, Long version, Map<String, Object> orbatJson, Map<String, Object> metadata, Instant createdAt,
-            Instant updatedAt) {
+            Instant updatedAt, Long updatedBy) {
 
         static PlayingOrbatResponse of(PlayingOrbat orbat) {
             return new PlayingOrbatResponse(orbat.getId(), orbat.getName(), orbat.getSideId(),
-                    orbat.getStandardOrbatId(), orbat.getGameId(), orbat.getScenarioId(), orbat.getVersion(), orbat.getOrbatJson(),
-                    orbat.getMetadata(), orbat.getCreatedAt(), orbat.getUpdatedAt());
+                    orbat.getStandardOrbatId(), orbat.getGameId(), orbat.getScenarioId(), orbat.getVersion(),
+                    orbat.getOrbatJson(), orbat.getMetadata(), orbat.getCreatedAt(), orbat.getUpdatedAt(),
+                    orbat.getUpdatedBy());
         }
     }
 

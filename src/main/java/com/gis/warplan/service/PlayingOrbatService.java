@@ -10,6 +10,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +37,8 @@ import com.gis.warplan.web.NotFoundException;
 /** Playing ORBATs of a game: replicas of standard ORBATs, alliance ORBATs, editing and finalizing. */
 @Service
 public class PlayingOrbatService {
+
+    private static final Logger log = LogManager.getLogger(PlayingOrbatService.class);
 
     private final PlayingOrbatRepository playingOrbats;
     private final StandardOrbatRepository standardOrbats;
@@ -110,7 +114,9 @@ public class PlayingOrbatService {
         orbat.setOrbatJson(OrbatSupport.document(OrbatSupport.replicate(OrbatSupport.nodesOf(standard.getOrbatJson()),
                 null)));
         orbat.setMetadata(draftMetadata());
+        access.currentPrincipal().ifPresent(principal -> orbat.setUpdatedBy(principal.userId()));
         PlayingOrbat saved = playingOrbats.saveAndFlush(orbat);
+        log.info("playing_orbat.replicated id={} gameId={} sideId={}", saved.getId(), gameId, sideId);
         audit.record("CREATE", "PlayingOrbat", saved.getId(), "Playing ORBAT replicated for " + side.getName(),
                 Map.of("gameId", gameId, "scenarioId", String.valueOf(game.getScenarioId()), "sideId", sideId));
         return saved;
@@ -137,7 +143,9 @@ public class PlayingOrbatService {
         }
         orbat.setMetadata(merged);
         orbat.setScenarioId(game.getScenarioId());
+        access.currentPrincipal().ifPresent(principal -> orbat.setUpdatedBy(principal.userId()));
         PlayingOrbat saved = playingOrbats.saveAndFlush(orbat);
+        log.info("playing_orbat.updated id={} gameId={} status={}", saved.getId(), gameId, status);
         int assigned = 0;
         if (OrbatSupport.STATUS_FINALIZED.equals(status)) {
             support.validate(saved.getOrbatJson());

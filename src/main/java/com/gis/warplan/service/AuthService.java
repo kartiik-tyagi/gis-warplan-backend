@@ -81,13 +81,15 @@ public class AuthService {
 
         UserSession session = new UserSession();
         session.setUserId(user.getId());
-        session.setTokenId(issued.tokenId());
-        session.setIssuedAt(issued.issuedAt());
+        session.setSessionTokenId(issued.tokenId());
+        session.setLoginAt(issued.issuedAt());
+        session.setSuccess(true);
         session.setExpiresAt(issued.expiresAt());
         sessions.save(session);
 
         user.setLastLoginAt(Instant.now());
         users.save(user);
+        log.info("login.ok userId={}", user.getId());
         audit.record("LOGIN", "AppUser", user.getId(), "User " + user.getName() + " signed in", Map.of());
         return new LoginResult(issued.token(), issued.expiresAt(), me(user));
     }
@@ -97,12 +99,15 @@ public class AuthService {
         if (principal.tokenId() == null) {
             return;
         }
-        sessions.findByTokenId(principal.tokenId()).ifPresent(session -> {
+        sessions.findBySessionTokenId(principal.tokenId()).ifPresent(session -> {
             if (session.getRevokedAt() == null) {
-                session.setRevokedAt(Instant.now());
+                Instant now = Instant.now();
+                session.setRevokedAt(now);
+                session.setLogoutAt(now);
                 sessions.save(session);
             }
         });
+        log.info("logout.ok userId={}", principal.userId());
         audit.record("LOGOUT", "AppUser", principal.userId(), "User " + principal.name() + " signed out", Map.of());
     }
 

@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,8 @@ import com.gis.warplan.web.NotFoundException;
 
 @Service
 public class SideService {
+
+    private static final Logger log = LogManager.getLogger(SideService.class);
 
     public static final String KIND_COUNTRY = "country";
     public static final String KIND_ALLIANCE = "alliance";
@@ -66,6 +70,7 @@ public class SideService {
         }
         Side side = build(new Side(), KIND_COUNTRY, name, description, colour, icon, themeId);
         Side saved = sides.save(side);
+        log.info("side.created id={} name={}", saved.getId(), saved.getName());
         audit.record("CREATE", "Side", saved.getId(), "Side " + saved.getName() + " created", Map.of());
         return saved;
     }
@@ -75,6 +80,7 @@ public class SideService {
         Side side = get(id);
         access.requireSideScope(id);
         Side saved = sides.save(build(side, side.getKind(), name, description, colour, icon, themeId));
+        log.info("side.updated id={}", saved.getId());
         audit.record("UPDATE", "Side", saved.getId(), "Side " + saved.getName() + " updated", Map.of());
         return saved;
     }
@@ -91,6 +97,7 @@ public class SideService {
         }
         allianceMembers.deleteAll(allianceMembers.findByAllianceSideId(id));
         sides.delete(side);
+        log.info("side.deleted id={}", id);
         audit.record("DELETE", "Side", id, "Side " + side.getName() + " deleted", Map.of());
     }
 

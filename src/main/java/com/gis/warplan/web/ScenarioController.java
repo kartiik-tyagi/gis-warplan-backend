@@ -1,6 +1,8 @@
 package com.gis.warplan.web;
 
 import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 
@@ -46,15 +48,15 @@ public class ScenarioController {
 
     @PostMapping("/scenarios")
     public ResponseEntity<ScenarioResponse> create(@Valid @RequestBody ScenarioRequest request) {
-        Scenario scenario = scenarios.createScenario(request.name(), request.description(), request.themeId(),
-                request.configJson());
+        Scenario scenario = scenarios.createScenario(request.name(), request.generalIdea(), request.openingNarrative(),
+                request.specialIdea(), request.attachedFile());
         return ResponseEntity.status(HttpStatus.CREATED).body(ScenarioResponse.of(scenario));
     }
 
     @PutMapping("/scenarios/{id}")
     public ScenarioResponse update(@PathVariable Long id, @Valid @RequestBody ScenarioRequest request) {
-        return ScenarioResponse.of(scenarios.updateScenario(id, request.name(), request.description(),
-                request.themeId(), request.configJson()));
+        return ScenarioResponse.of(scenarios.updateScenario(id, request.name(), request.generalIdea(),
+                request.openingNarrative(), request.specialIdea(), request.attachedFile()));
     }
 
     @DeleteMapping("/scenarios/{id}")
@@ -76,7 +78,8 @@ public class ScenarioController {
     @PostMapping("/scenarios/{scenarioId}/games")
     public ResponseEntity<GameResponse> createGame(@PathVariable Long scenarioId,
             @Valid @RequestBody GameRequest request) {
-        Game game = scenarios.createGame(scenarioId, request.name(), request.moonphases(), request.configJson());
+        Game game = scenarios.createGame(scenarioId, request.name(), request.dateTime(), request.sunrise(),
+                request.sunset(), request.moonphases(), request.description(), request.metadata());
         return ResponseEntity.status(HttpStatus.CREATED).body(GameResponse.of(game));
     }
 
@@ -87,7 +90,8 @@ public class ScenarioController {
 
     @PutMapping("/games/{id}")
     public GameResponse updateGame(@PathVariable Long id, @Valid @RequestBody GameRequest request) {
-        return GameResponse.of(scenarios.updateGame(id, request.name(), request.moonphases(), request.configJson()));
+        return GameResponse.of(scenarios.updateGame(id, request.name(), request.dateTime(), request.sunrise(),
+                request.sunset(), request.moonphases(), request.description(), request.metadata()));
     }
 
     @DeleteMapping("/games/{id}")
@@ -103,34 +107,42 @@ public class ScenarioController {
 
     public record ScenarioRequest(
             @NotBlank @Size(max = 160) String name,
-            @Size(max = 1000) String description,
-            Long themeId,
-            Map<String, Object> configJson) {
+            @Size(max = 4000) String generalIdea,
+            @Size(max = 8000) String openingNarrative,
+            @Size(max = 4000) String specialIdea,
+            @Size(max = 500) String attachedFile) {
     }
 
-    public record ScenarioResponse(Long id, String name, String description, Long themeId, boolean active,
-            Map<String, Object> configJson, Instant createdAt, Instant updatedAt) {
+    public record ScenarioResponse(Long id, String name, String generalIdea, String openingNarrative,
+            String specialIdea, boolean active, String attachedFile, Instant createdAt, Instant updatedAt,
+            Long createdBy) {
 
         static ScenarioResponse of(Scenario scenario) {
-            return new ScenarioResponse(scenario.getId(), scenario.getName(), scenario.getDescription(),
-                    scenario.getThemeId(), scenario.isActive(), scenario.getConfigJson(), scenario.getCreatedAt(),
-                    scenario.getUpdatedAt());
+            return new ScenarioResponse(scenario.getId(), scenario.getName(), scenario.getGeneralIdea(),
+                    scenario.getOpeningNarrative(), scenario.getSpecialIdea(), scenario.isActive(),
+                    scenario.getAttachedFile(), scenario.getCreatedAt(), scenario.getUpdatedAt(),
+                    scenario.getCreatedBy());
         }
     }
 
-    public record GameRequest(@NotBlank @Size(max = 160) String name, @Size(max = 4000) String moonphases,
-            Map<String, Object> configJson) {
+    public record GameRequest(
+            @NotBlank @Size(max = 160) String name,
+            LocalDateTime dateTime,
+            LocalTime sunrise,
+            LocalTime sunset,
+            @Size(max = 4000) String moonphases,
+            @Size(max = 4000) String description,
+            Map<String, Object> metadata) {
     }
 
-    public record GameResponse(Long id, String name, Long scenarioId, String moonphases, String status,
-            boolean active, Map<String, Object> configJson, Instant startedAt, Instant endedAt, Instant createdAt,
-            Instant updatedAt) {
+    public record GameResponse(Long id, Long scenarioId, String name, LocalDateTime dateTime, LocalTime sunrise,
+            LocalTime sunset, String moonphases, String description, boolean active, Map<String, Object> metadata,
+            Instant createdAt, Instant updatedAt) {
 
         static GameResponse of(Game game) {
-            return new GameResponse(game.getId(), game.getName(), game.getScenarioId(), game.getMoonphases(),
-                    game.getStatus(),
-                    game.isActive(), game.getConfigJson(), game.getStartedAt(), game.getEndedAt(),
-                    game.getCreatedAt(), game.getUpdatedAt());
+            return new GameResponse(game.getId(), game.getScenarioId(), game.getName(), game.getDateTime(),
+                    game.getSunrise(), game.getSunset(), game.getMoonphases(), game.getDescription(), game.isActive(),
+                    game.getMetadata(), game.getCreatedAt(), game.getUpdatedAt());
         }
     }
 }

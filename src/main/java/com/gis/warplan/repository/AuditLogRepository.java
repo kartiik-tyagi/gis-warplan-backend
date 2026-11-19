@@ -9,5 +9,5 @@ import com.gis.warplan.domain.AuditLog;
 
 public interface AuditLogRepository extends JpaRepository<AuditLog, Long>, JpaSpecificationExecutor<AuditLog> {
 
-    List<AuditLog> findTop100ByOrderByCreatedAtDesc();
+    List<AuditLog> findTop100ByOrderByOccurredAtDesc();
 }

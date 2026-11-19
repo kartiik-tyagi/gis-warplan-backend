@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +25,8 @@ import com.gis.warplan.web.NotFoundException;
 
 @Service
 public class RoleService {
+
+    private static final Logger log = LogManager.getLogger(RoleService.class);
 
     private static final Set<String> BUILT_IN = Set.of(RoleCodes.ADMINISTRATOR, RoleCodes.SIDE_ADMINISTRATOR,
             RoleCodes.COMMANDER, RoleCodes.PLANNER);
@@ -65,7 +69,9 @@ public class RoleService {
         role.setName(name.trim());
         role.setDescription(description);
         role.setFunctionalityIds(checkedFunctionalities(functionalityIds));
+        role.setStandard(false);
         RoleEntity saved = roles.save(role);
+        log.info("role.created id={} code={}", saved.getId(), saved.getCode());
         audit.record("CREATE", "Role", saved.getId(), "Role " + saved.getCode() + " created",
                 Map.of("functionalityIds", saved.getFunctionalityIds()));
         return saved;
@@ -85,6 +91,7 @@ public class RoleService {
         role.setDescription(description);
         role.setFunctionalityIds(checked);
         RoleEntity saved = roles.save(role);
+        log.info("role.updated id={} code={}", saved.getId(), saved.getCode());
         audit.record("UPDATE", "Role", saved.getId(), "Role " + saved.getCode() + " updated",
                 Map.of("functionalityIds", saved.getFunctionalityIds()));
         return saved;
@@ -93,7 +100,7 @@ public class RoleService {
     @Transactional
     public void delete(Long id) {
         RoleEntity role = get(id);
-        if (BUILT_IN.contains(role.getCode())) {
+        if (BUILT_IN.contains(role.getCode()) || role.isStandard()) {
             throw new ConflictException("Built-in roles cannot be deleted.");
         }
         for (AppUser user : users.findAll()) {
@@ -102,6 +109,7 @@ public class RoleService {
             }
         }
         roles.delete(role);
+        log.info("role.deleted id={} code={}", id, role.getCode());
         audit.record("DELETE", "Role", id, "Role " + role.getCode() + " deleted", Map.of());
     }
 

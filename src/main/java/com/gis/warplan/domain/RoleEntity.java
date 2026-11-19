@@ -32,6 +32,10 @@ public class RoleEntity {
     @JdbcTypeCode(SqlTypes.JSON)
     private List<Long> functionalityIds;
 
+    /** True for seeded/system roles that ship with the product. */
+    @Column(nullable = false, columnDefinition = "boolean default false")
+    private boolean standard;
+
     @Column(nullable = false)
     private Instant createdAt;
 

@@ -26,7 +26,6 @@ import com.gis.warplan.domain.Theme;
 import com.gis.warplan.repository.AppUserRepository;
 import com.gis.warplan.repository.FunctionalityRepository;
 import com.gis.warplan.repository.RoleRepository;
-import com.gis.warplan.repository.ScenarioRepository;
 import com.gis.warplan.repository.SideRepository;
 import com.gis.warplan.repository.ThemeRepository;
 import com.gis.warplan.service.IconService;
@@ -71,7 +70,6 @@ public class DomainSeedRunner implements ApplicationRunner {
     private final RoleRepository roles;
     private final AppUserRepository users;
     private final SideRepository sides;
-    private final ScenarioRepository scenarios;
     private final PasswordEncoder passwordEncoder;
     private final IconService icons;
     private final MapCatalogSeedService mapCatalogSeed;
@@ -79,15 +77,13 @@ public class DomainSeedRunner implements ApplicationRunner {
     private final TransactionTemplate transaction;
 
     public DomainSeedRunner(ThemeRepository themes, FunctionalityRepository functionalities, RoleRepository roles,
-            AppUserRepository users, SideRepository sides, ScenarioRepository scenarios,
-            PasswordEncoder passwordEncoder, IconService icons, MapCatalogSeedService mapCatalogSeed,
-            ObjectMapper objectMapper, TransactionTemplate transaction) {
+            AppUserRepository users, SideRepository sides, PasswordEncoder passwordEncoder, IconService icons,
+            MapCatalogSeedService mapCatalogSeed, ObjectMapper objectMapper, TransactionTemplate transaction) {
         this.themes = themes;
         this.functionalities = functionalities;
         this.roles = roles;
         this.users = users;
         this.sides = sides;
-        this.scenarios = scenarios;
         this.passwordEncoder = passwordEncoder;
         this.icons = icons;
         this.mapCatalogSeed = mapCatalogSeed;
@@ -146,7 +142,7 @@ public class DomainSeedRunner implements ApplicationRunner {
                 return;
             }
             Long id = legacy.getId();
-            if (users.countByThemeId(id) == 0 && sides.countByThemeId(id) == 0 && scenarios.countByThemeId(id) == 0) {
+            if (users.countByThemeId(id) == 0 && sides.countByThemeId(id) == 0) {
                 themes.delete(legacy);
                 log.info("Removed unused legacy theme {}", LEGACY_DEFAULT_THEME);
             }
@@ -196,14 +192,20 @@ public class DomainSeedRunner implements ApplicationRunner {
             role = new RoleEntity();
             role.setCode(code);
             role.setName(name);
+            role.setStandard(true);
             role.setFunctionalityIds(new ArrayList<>(functionalityIds));
             return roles.save(role);
+        }
+        boolean changed = false;
+        if (!role.isStandard()) {
+            role.setStandard(true);
+            changed = true;
         }
         if (refresh && !functionalityIds.equals(role.getFunctionalityIds())) {
             role.setFunctionalityIds(new ArrayList<>(functionalityIds));
-            return roles.save(role);
+            changed = true;
         }
-        return role;
+        return changed ? roles.save(role) : role;
     }
 
     private void seedApex(RoleEntity administrator) {

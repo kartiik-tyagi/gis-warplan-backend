@@ -17,11 +17,9 @@ import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 /**
- * The domain was renamed (team to side, feature to functionality) and playing ORBATs / alliance sides now belong to
- * a game. Hibernate {@code ddl-auto: update} only adds objects, it never renames or drops them, so a database
- * created before the change keeps its old tables and cannot satisfy the new required columns. There are no
- * migration files: the {@code gis_warplan} database must be dropped once and recreated by starting the application.
- * This runner only logs a clear message when it finds the old tables; it never changes the schema or stops startup.
+ * Legacy tables from before the side/functionality rename. Hibernate {@code ddl-auto: update} never renames or
+ * drops columns. After SCHEMA-LOCK changes, drop and recreate {@code gis_warplan} once (see docs/SCHEMA-LOCK.md).
+ * This runner only logs when it finds old tables; it never changes the schema or stops startup.
  */
 @Component
 @Order(1)

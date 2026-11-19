@@ -7,8 +7,8 @@ spring:
     password: ${DB_PASSWORD:postgres}
   jpa:
     hibernate:
-      # NOTE: update never renames/drops. After the team->side, feature->functionality and game-owned ORBAT
-      # change, drop the old database once (previously named gis_warplan if present) and restart (no migration files; see LegacySchemaCheckRunner).
+      # NOTE: update never renames/drops. After schema-lock changes (scenario/game fields, audit/session),
+      # drop database gis_warplan once and restart (no migration files; see docs/SCHEMA-LOCK.md).
       ddl-auto: update
     open-in-view: false
     properties:

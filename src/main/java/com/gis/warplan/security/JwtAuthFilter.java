@@ -55,7 +55,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (principal.tokenId() == null) {
             return false;
         }
-        return sessions.findByTokenId(principal.tokenId())
+        return sessions.findBySessionTokenId(principal.tokenId())
                 .filter(session -> session.getRevokedAt() == null)
                 .filter(session -> session.getExpiresAt().isAfter(Instant.now()))
                 .isPresent();

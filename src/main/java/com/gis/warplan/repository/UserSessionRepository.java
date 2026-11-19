@@ -11,7 +11,7 @@ import com.gis.warplan.domain.UserSession;
 
 public interface UserSessionRepository extends JpaRepository<UserSession, Long> {
 
-    Optional<UserSession> findByTokenId(String tokenId);
+    Optional<UserSession> findBySessionTokenId(String sessionTokenId);
 
     List<UserSession> findByUserId(Long userId);
 

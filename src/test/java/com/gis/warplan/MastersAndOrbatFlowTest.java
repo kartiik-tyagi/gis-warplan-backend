@@ -243,7 +243,7 @@ class MastersAndOrbatFlowTest {
                 .contains("CREATE", "ACTIVATE");
         Map sessionPage = (Map) call(admin, HttpMethod.GET, "/api/v1/audit/sessions", null).getBody();
         assertThat((List<Map>) sessionPage.get("items")).isNotEmpty();
-        assertThat(sessionPage.toString()).doesNotContain("tokenId");
+        assertThat(sessionPage.toString()).doesNotContain("sessionTokenId");
     }
 
     @Test

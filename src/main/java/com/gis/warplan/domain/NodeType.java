@@ -26,6 +26,9 @@ public class NodeType {
     @Column(nullable = false, length = 120)
     private String name;
 
+    @Column(length = 500)
+    private String description;
+
     @Column(length = 300)
     private String iconPath;
 
@@ -37,6 +40,10 @@ public class NodeType {
 
     @Column(nullable = false)
     private Instant updatedAt;
+
+    private Long createdBy;
+
+    private Long updatedBy;
 
     @PrePersist
     void onCreate() {

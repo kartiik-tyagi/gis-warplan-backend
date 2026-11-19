@@ -40,6 +40,8 @@ public class StandardOrbat {
     @Column(nullable = false)
     private Instant updatedAt;
 
+    private Long updatedBy;
+
     @PrePersist
     void onCreate() {
         Instant now = Instant.now();

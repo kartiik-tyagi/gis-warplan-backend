@@ -1,6 +1,7 @@
 package com.gis.warplan.service;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 
@@ -35,30 +36,24 @@ public class ScenarioService {
 
     private static final Logger log = LogManager.getLogger(ScenarioService.class);
 
-    public static final String GAME_DRAFT = "DRAFT";
-    public static final String GAME_ACTIVE = "ACTIVE";
-    public static final String GAME_INACTIVE = "INACTIVE";
-
     private final ScenarioRepository scenarios;
     private final GameRepository games;
     private final PlayingOrbatRepository playingOrbats;
     private final AppUserRepository users;
     private final SideRepository sides;
     private final AllianceMemberRepository allianceMembers;
-    private final ThemeService themes;
     private final AccessService access;
     private final AuditService audit;
 
     public ScenarioService(ScenarioRepository scenarios, GameRepository games, PlayingOrbatRepository playingOrbats,
             AppUserRepository users, SideRepository sides, AllianceMemberRepository allianceMembers,
-            ThemeService themes, AccessService access, AuditService audit) {
+            AccessService access, AuditService audit) {
         this.scenarios = scenarios;
         this.games = games;
         this.playingOrbats = playingOrbats;
         this.users = users;
         this.sides = sides;
         this.allianceMembers = allianceMembers;
-        this.themes = themes;
         this.access = access;
         this.audit = audit;
     }
@@ -78,30 +73,26 @@ public class ScenarioService {
     }
 
     @Transactional
-    public Scenario createScenario(String name, String description, Long themeId, Map<String, Object> configJson) {
+    public Scenario createScenario(String name, String generalIdea, String openingNarrative, String specialIdea,
+            String attachedFile) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
-        themes.requireExists(themeId);
         Scenario scenario = new Scenario();
-        scenario.setName(name.trim());
-        scenario.setDescription(description);
-        scenario.setThemeId(themeId);
-        scenario.setConfigJson(configJson);
+        applyScenarioFields(scenario, name, generalIdea, openingNarrative, specialIdea, attachedFile);
+        access.currentPrincipal().ifPresent(principal -> scenario.setCreatedBy(principal.userId()));
         Scenario saved = scenarios.save(scenario);
+        log.info("scenario.created id={} name={}", saved.getId(), saved.getName());
         audit.record("CREATE", "Scenario", saved.getId(), "Scenario " + saved.getName() + " created", Map.of());
         return saved;
     }
 
     @Transactional
-    public Scenario updateScenario(Long id, String name, String description, Long themeId,
-            Map<String, Object> configJson) {
+    public Scenario updateScenario(Long id, String name, String generalIdea, String openingNarrative,
+            String specialIdea, String attachedFile) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
         Scenario scenario = findScenario(id);
-        themes.requireExists(themeId);
-        scenario.setName(name.trim());
-        scenario.setDescription(description);
-        scenario.setThemeId(themeId);
-        scenario.setConfigJson(configJson);
+        applyScenarioFields(scenario, name, generalIdea, openingNarrative, specialIdea, attachedFile);
         Scenario saved = scenarios.save(scenario);
+        log.info("scenario.updated id={}", saved.getId());
         audit.record("UPDATE", "Scenario", saved.getId(), "Scenario " + saved.getName() + " updated", Map.of());
         return saved;
     }
@@ -119,6 +110,7 @@ public class ScenarioService {
             purgeGame(game);
         }
         scenarios.delete(scenario);
+        log.info("scenario.deleted id={}", id);
         audit.record("DELETE", "Scenario", id, "Scenario " + scenario.getName() + " deleted", Map.of());
     }
 
@@ -128,6 +120,7 @@ public class ScenarioService {
         access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
         Scenario scenario = findScenario(id);
         activate(scenario);
+        log.info("scenario.activated id={}", id);
         audit.record("ACTIVATE", "Scenario", id, "Scenario " + scenario.getName() + " activated", Map.of());
         return scenario;
     }
@@ -148,29 +141,28 @@ public class ScenarioService {
     }
 
     @Transactional
-    public Game createGame(Long scenarioId, String name, String moonphases, Map<String, Object> configJson) {
+    public Game createGame(Long scenarioId, String name, LocalDateTime dateTime, LocalTime sunrise, LocalTime sunset,
+            String moonphases, String description, Map<String, Object> metadata) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_GAME);
         findScenario(scenarioId);
         Game game = new Game();
-        game.setName(name.trim());
         game.setScenarioId(scenarioId);
-        game.setMoonphases(moonphases);
-        game.setStatus(GAME_DRAFT);
-        game.setConfigJson(configJson);
+        applyGameFields(game, name, dateTime, sunrise, sunset, moonphases, description, metadata);
         Game saved = games.save(game);
+        log.info("game.created id={} scenarioId={}", saved.getId(), scenarioId);
         audit.record("CREATE", "Game", saved.getId(), "Game " + saved.getName() + " created",
                 Map.of("scenarioId", scenarioId));
         return saved;
     }
 
     @Transactional
-    public Game updateGame(Long id, String name, String moonphases, Map<String, Object> configJson) {
+    public Game updateGame(Long id, String name, LocalDateTime dateTime, LocalTime sunrise, LocalTime sunset,
+            String moonphases, String description, Map<String, Object> metadata) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_GAME);
         Game game = findGame(id);
-        game.setName(name.trim());
-        game.setMoonphases(moonphases);
-        game.setConfigJson(configJson);
+        applyGameFields(game, name, dateTime, sunrise, sunset, moonphases, description, metadata);
         Game saved = games.save(game);
+        log.info("game.updated id={}", saved.getId());
         audit.record("UPDATE", "Game", saved.getId(), "Game " + saved.getName() + " updated", Map.of());
         return saved;
     }
@@ -184,6 +176,7 @@ public class ScenarioService {
             throw new ConflictException("The active game cannot be deleted.");
         }
         purgeGame(game);
+        log.info("game.deleted id={}", id);
         audit.record("DELETE", "Game", id, "Game " + game.getName() + " deleted", Map.of());
     }
 
@@ -197,16 +190,12 @@ public class ScenarioService {
         for (Game other : games.findByActiveTrue()) {
             if (!other.getId().equals(id)) {
                 other.setActive(false);
-                other.setStatus(GAME_INACTIVE);
                 games.save(other);
             }
         }
         game.setActive(true);
-        game.setStatus(GAME_ACTIVE);
-        if (game.getStartedAt() == null) {
-            game.setStartedAt(Instant.now());
-        }
         Game saved = games.save(game);
+        log.info("game.activated id={} scenarioId={}", id, scenario.getId());
         audit.record("ACTIVATE", "Game", id, "Game " + game.getName() + " activated",
                 Map.of("scenarioId", scenario.getId()));
         return saved;
@@ -254,11 +243,38 @@ public class ScenarioService {
         for (Game game : games.findByActiveTrue()) {
             if (!scenario.getId().equals(game.getScenarioId())) {
                 game.setActive(false);
-                game.setStatus(GAME_INACTIVE);
                 games.save(game);
             }
         }
         scenario.setActive(true);
         scenarios.save(scenario);
+    }
+
+    private static void applyScenarioFields(Scenario scenario, String name, String generalIdea,
+            String openingNarrative, String specialIdea, String attachedFile) {
+        scenario.setName(name.trim());
+        scenario.setGeneralIdea(blankToNull(generalIdea));
+        scenario.setOpeningNarrative(blankToNull(openingNarrative));
+        scenario.setSpecialIdea(blankToNull(specialIdea));
+        scenario.setAttachedFile(blankToNull(attachedFile));
+    }
+
+    private static void applyGameFields(Game game, String name, LocalDateTime dateTime, LocalTime sunrise,
+            LocalTime sunset, String moonphases, String description, Map<String, Object> metadata) {
+        game.setName(name.trim());
+        game.setDateTime(dateTime);
+        game.setSunrise(sunrise);
+        game.setSunset(sunset);
+        game.setMoonphases(blankToNull(moonphases));
+        game.setDescription(blankToNull(description));
+        game.setMetadata(metadata);
+    }
+
+    private static String blankToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

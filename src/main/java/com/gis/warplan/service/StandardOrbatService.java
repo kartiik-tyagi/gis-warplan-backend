@@ -4,6 +4,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +20,8 @@ import com.gis.warplan.web.NotFoundException;
 
 @Service
 public class StandardOrbatService {
+
+    private static final Logger log = LogManager.getLogger(StandardOrbatService.class);
 
     private final StandardOrbatRepository orbats;
     private final SideRepository sides;
@@ -60,7 +64,9 @@ public class StandardOrbatService {
         orbat.setSideId(sideId);
         orbat.setOrbatJson(OrbatSupport.document(List.of(OrbatSupport.rootNode(side.getName(), sideId))));
         orbat.setMetadata(new java.util.LinkedHashMap<>());
+        access.currentPrincipal().ifPresent(principal -> orbat.setUpdatedBy(principal.userId()));
         StandardOrbat saved = orbats.saveAndFlush(orbat);
+        log.info("standard_orbat.created id={} sideId={}", saved.getId(), sideId);
         audit.record("CREATE", "StandardOrbat", saved.getId(), "Standard ORBAT created for " + side.getName(),
                 Map.of("sideId", sideId));
         return new Created(saved, true);
@@ -80,7 +86,9 @@ public class StandardOrbatService {
         if (metadata != null) {
             orbat.setMetadata(metadata);
         }
+        access.currentPrincipal().ifPresent(principal -> orbat.setUpdatedBy(principal.userId()));
         StandardOrbat saved = orbats.saveAndFlush(orbat);
+        log.info("standard_orbat.updated id={} sideId={} version={}", saved.getId(), sideId, saved.getVersion());
         audit.record("UPDATE", "StandardOrbat", saved.getId(), "Standard ORBAT saved for side " + sideId,
                 Map.of("sideId", sideId, "nodes", nodes, "version", saved.getVersion()));
         return saved;

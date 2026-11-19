@@ -6,8 +6,7 @@
         <Property name="LOG_PATTERN">%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5p %c.%M:%L [%X{requestId}] - %m%n</Property>
     </Properties>
     <Appenders>
-        <Console name="Console" target="SYSTEM_ERR">
-            <ThresholdFilter level="ERROR" onMatch="ACCEPT" onMismatch="DENY"/>
+        <Console name="Console" target="SYSTEM_OUT">
             <PatternLayout pattern="${LOG_PATTERN}"/>
         </Console>
         <RollingFile name="LibLog"
@@ -32,6 +31,7 @@
     <Loggers>
         <Logger name="com.gis.warplan" level="info" additivity="false">
             <AppenderRef ref="AppLog"/>
+            <AppenderRef ref="Console"/>
         </Logger>
         <Root level="error">
             <AppenderRef ref="LibLog"/>

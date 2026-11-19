@@ -1,10 +1,6 @@
 package com.gis.warplan.domain;
 
 import java.time.Instant;
-import java.util.Map;
-
-import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -23,22 +19,28 @@ public class Scenario {
     @Column(nullable = false, length = 160)
     private String name;
 
-    @Column(length = 1000)
-    private String description;
+    @Column(length = 4000)
+    private String generalIdea;
 
-    private Long themeId;
+    @Column(length = 8000)
+    private String openingNarrative;
+
+    @Column(length = 4000)
+    private String specialIdea;
 
     @Column(nullable = false, columnDefinition = "boolean default false")
     private boolean active;
 
-    @JdbcTypeCode(SqlTypes.JSON)
-    private Map<String, Object> configJson;
+    @Column(length = 500)
+    private String attachedFile;
 
     @Column(nullable = false)
     private Instant createdAt;
 
     @Column(nullable = false)
     private Instant updatedAt;
+
+    private Long createdBy;
 
     @PrePersist
     void onCreate() {

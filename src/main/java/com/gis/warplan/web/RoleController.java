@@ -85,12 +85,12 @@ public class RoleController {
     }
 
     public record RoleResponse(Long id, String code, String name, String description, List<Long> functionalityIds,
-            Instant createdAt, Instant updatedAt) {
+            boolean standard, Instant createdAt, Instant updatedAt) {
 
         static RoleResponse of(RoleEntity role) {
             return new RoleResponse(role.getId(), role.getCode(), role.getName(), role.getDescription(),
-                    role.getFunctionalityIds() == null ? List.of() : role.getFunctionalityIds(), role.getCreatedAt(),
-                    role.getUpdatedAt());
+                    role.getFunctionalityIds() == null ? List.of() : role.getFunctionalityIds(), role.isStandard(),
+                    role.getCreatedAt(), role.getUpdatedAt());
         }
     }
 

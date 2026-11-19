@@ -11,7 +11,7 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "audit_log", indexes = @Index(columnList = "createdAt"))
+@Table(name = "audit_log", indexes = @Index(columnList = "occurredAt"))
 @Getter
 @Setter
 public class AuditLog {
@@ -20,10 +20,12 @@ public class AuditLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long userId;
+    @Column(nullable = false)
+    private Instant occurredAt;
 
-    @Column(length = 120)
-    private String userName;
+    private Long actorUserId;
+
+    private Long sessionId;
 
     @Column(nullable = false, length = 80)
     private String action;
@@ -37,13 +39,21 @@ public class AuditLog {
     private String summary;
 
     @JdbcTypeCode(SqlTypes.JSON)
-    private Map<String, Object> detail;
+    private Map<String, Object> detailJson;
 
-    @Column(nullable = false)
-    private Instant createdAt;
+    @Column(length = 80)
+    private String ipAddress;
+
+    @Column(length = 400)
+    private String userAgent;
+
+    @Column(length = 80)
+    private String requestId;
 
     @PrePersist
     void onCreate() {
-        createdAt = Instant.now();
+        if (occurredAt == null) {
+            occurredAt = Instant.now();
+        }
     }
 }

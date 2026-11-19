@@ -3,6 +3,8 @@ package com.gis.warplan.service;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,18 +21,22 @@ import com.gis.warplan.web.NotFoundException;
 @Service
 public class NodeTypeService {
 
+    private static final Logger log = LogManager.getLogger(NodeTypeService.class);
+
     private final NodeTypeRepository nodeTypes;
     private final StandardOrbatRepository standardOrbats;
     private final PlayingOrbatRepository playingOrbats;
     private final IconService icons;
+    private final AccessService access;
     private final AuditService audit;
 
     public NodeTypeService(NodeTypeRepository nodeTypes, StandardOrbatRepository standardOrbats,
-            PlayingOrbatRepository playingOrbats, IconService icons, AuditService audit) {
+            PlayingOrbatRepository playingOrbats, IconService icons, AccessService access, AuditService audit) {
         this.nodeTypes = nodeTypes;
         this.standardOrbats = standardOrbats;
         this.playingOrbats = playingOrbats;
         this.icons = icons;
+        this.access = access;
         this.audit = audit;
     }
 
@@ -45,7 +51,8 @@ public class NodeTypeService {
     }
 
     @Transactional
-    public NodeType create(String code, String name, String iconPath, Map<String, Object> properties) {
+    public NodeType create(String code, String name, String description, String iconPath,
+            Map<String, Object> properties) {
         String normalized = code.trim().toUpperCase();
         if (nodeTypes.findByCode(normalized).isPresent()) {
             throw new ConflictException("A node type with this code already exists.");
@@ -54,15 +61,19 @@ public class NodeTypeService {
         NodeType type = new NodeType();
         type.setCode(normalized);
         type.setName(name.trim());
+        type.setDescription(blankToNull(description));
         type.setIconPath(blankToNull(iconPath));
         type.setProperties(properties);
+        access.currentPrincipal().ifPresent(principal -> type.setCreatedBy(principal.userId()));
         NodeType saved = nodeTypes.save(type);
+        log.info("node_type.created id={} code={}", saved.getId(), saved.getCode());
         audit.record("CREATE", "NodeType", saved.getId(), "Node type " + saved.getCode() + " created", Map.of());
         return saved;
     }
 
     @Transactional
-    public NodeType update(Long id, String code, String name, String iconPath, Map<String, Object> properties) {
+    public NodeType update(Long id, String code, String name, String description, String iconPath,
+            Map<String, Object> properties) {
         NodeType type = get(id);
         String normalized = code.trim().toUpperCase();
         nodeTypes.findByCode(normalized).filter(other -> !other.getId().equals(id)).ifPresent(other -> {
@@ -71,9 +82,12 @@ public class NodeTypeService {
         checkIcon(iconPath);
         type.setCode(normalized);
         type.setName(name.trim());
+        type.setDescription(blankToNull(description));
         type.setIconPath(blankToNull(iconPath));
         type.setProperties(properties);
+        access.currentPrincipal().ifPresent(principal -> type.setUpdatedBy(principal.userId()));
         NodeType saved = nodeTypes.save(type);
+        log.info("node_type.updated id={} code={}", saved.getId(), saved.getCode());
         audit.record("UPDATE", "NodeType", saved.getId(), "Node type " + saved.getCode() + " updated", Map.of());
         return saved;
     }
@@ -85,6 +99,7 @@ public class NodeTypeService {
             throw new ConflictException("The node type is used by an ORBAT.");
         }
         nodeTypes.delete(type);
+        log.info("node_type.deleted id={} code={}", id, type.getCode());
         audit.record("DELETE", "NodeType", id, "Node type " + type.getCode() + " deleted", Map.of());
     }
 
