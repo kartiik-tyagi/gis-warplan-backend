@@ -202,6 +202,34 @@ class MastersAndOrbatFlowTest {
         assertThat(works.get("canWork")).isEqualTo(true);
         assertThat(works.get("workBlockedReason")).isNull();
         assertThat(((Number) works.get("playingOrbatId")).longValue()).isEqualTo(playingId);
+        assertSituation(token("cmd" + suffix, "secret1"), gameId, playingId);
+
+        // a finalized ORBAT stays locked until it is explicitly re-edited, then must be finalized again
+        Long lockedVersion = ((Number) ((Map) finalized.getBody()).get("version")).longValue();
+        assertThat(call(admin, HttpMethod.PUT, orbats + "/" + playingId,
+                Map.of("orbatJson", playing.get("orbatJson"), "version", lockedVersion)).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
+        ResponseEntity<Object> reopened = call(admin, HttpMethod.PUT, orbats + "/" + playingId,
+                Map.of("metadata", Map.of("status", "draft"), "version", lockedVersion));
+        assertThat(reopened.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(((Map) ((Map) reopened.getBody()).get("metadata")).get("status")).isEqualTo("draft");
+        Map paused = (Map) login("cmd" + suffix, "secret1").getBody().get("me");
+        assertThat(paused.get("canWork")).isEqualTo(false);
+        assertThat(paused.get("workBlockedReason")).isEqualTo("ORBAT_NOT_FINALIZED");
+        assertThat(((Number) paused.get("playingOrbatId")).longValue()).isEqualTo(playingId);
+        Map hidden = (Map) call(token("cmd" + suffix, "secret1"), HttpMethod.GET, "/api/v1/situation", null).getBody();
+        assertThat((List) hidden.get("orbats")).isEmpty();
+        assertThat(call(null, HttpMethod.GET, "/api/v1/situation", null).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        Long draftVersion = ((Number) ((Map) reopened.getBody()).get("version")).longValue();
+        ResponseEntity<Object> again = call(admin, HttpMethod.PUT, orbats + "/" + playingId,
+                Map.of("metadata", Map.of("status", "finalized"), "version", draftVersion));
+        assertThat(again.getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map resumed = (Map) login("cmd" + suffix, "secret1").getBody().get("me");
+        assertThat(resumed.get("canWork")).isEqualTo(true);
+        assertThat(resumed.get("playingNodeId")).isEqualTo(playingChild);
+        assertSituation(token("cmd" + suffix, "secret1"), gameId, playingId);
+        Map apexPicture = (Map) call(admin, HttpMethod.GET, "/api/v1/situation", null).getBody();
+        assertThat(idsOf(apexPicture)).contains(playingId);
 
         // second scenario takes over as the only active one
         Map second = created(call(admin, HttpMethod.POST, "/api/v1/scenarios", Map.of("name", "Scn2 " + suffix)));
@@ -227,31 +255,79 @@ class MastersAndOrbatFlowTest {
         assertThat(((Map) login("cmd" + suffix, "secret1").getBody().get("me")).get("workBlockedReason"))
                 .isEqualTo("NO_ACTIVE_SCENARIO");
 
-        // alliance of Alpha and Bravo (Bravo gets a standard ORBAT first)
+        // a side already playing alone cannot join an alliance, and an alliance member cannot also play alone
+        Map charlie = created(call(admin, HttpMethod.POST, "/api/v1/sides", force(admin, "Charlie " + suffix)));
+        Long charlieId = id(charlie);
         call(admin, HttpMethod.POST, "/api/v1/sides/" + bravoId + "/standard-orbat", null);
         Long allianceTheme = id(created(call(admin, HttpMethod.POST, "/api/v1/themes",
                 Map.of("name", "Pact theme " + suffix, "configJson", Map.of("mode", "dark")))));
+        assertThat(call(admin, HttpMethod.POST, "/api/v1/games/" + gameId + "/alliances",
+                Map.of("name", "Blocked " + suffix, "colour", "#aabbcc", "themeId", allianceTheme,
+                        "memberSideIds", List.of(alphaId, bravoId))).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
         ResponseEntity<Object> alliance = call(admin, HttpMethod.POST,
                 "/api/v1/games/" + gameId + "/alliances",
                 Map.of("name", "Pact " + suffix, "colour", "#aabbcc", "themeId", allianceTheme,
-                        "memberSideIds", List.of(alphaId, bravoId)));
+                        "memberSideIds", List.of(bravoId, charlieId)));
         assertThat(alliance.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         Map allianceBody = (Map) alliance.getBody();
         assertThat(((Map) allianceBody.get("side")).get("kind")).isEqualTo("alliance");
         assertThat(((Number) ((Map) allianceBody.get("side")).get("gameId")).longValue()).isEqualTo(gameId);
         assertThat(((Number) ((Map) allianceBody.get("side")).get("scenarioId")).longValue()).isEqualTo(scenarioId);
         assertThat((List<Number>) allianceBody.get("memberSideIds")).hasSize(2);
+        Long allianceSideId = id((Map) allianceBody.get("side"));
         Long alliancePlayingId = ((Number) allianceBody.get("playingOrbatId")).longValue();
         Map alliancePlaying = (Map) call(admin, HttpMethod.GET, orbats + "/" + alliancePlayingId, null)
                 .getBody();
         List<Map> allianceNodes = (List<Map>) ((Map) alliancePlaying.get("orbatJson")).get("nodes");
-        // alliance root + alpha (2 nodes) + bravo (1 node)
-        assertThat(allianceNodes).hasSize(4);
+        // alliance root + bravo root + charlie root
+        assertThat(allianceNodes).hasSize(3);
         assertThat(allianceNodes.stream().map(n -> ((Number) n.get("homeSideId")).longValue()).toList())
-                .contains(alphaId, bravoId);
+                .contains(bravoId, charlieId);
+        assertThat(call(admin, HttpMethod.POST, orbats + "/replica", Map.of("sideId", bravoId)).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
+        assertThat(call(admin, HttpMethod.POST, "/api/v1/games/" + id(otherGame) + "/playing-orbats/replica",
+                Map.of("sideId", bravoId)).getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        Long secondTheme = id(created(call(admin, HttpMethod.POST, "/api/v1/themes",
+                Map.of("name", "Second pact " + suffix, "configJson", Map.of("mode", "dark")))));
+        assertThat(call(admin, HttpMethod.POST, "/api/v1/games/" + gameId + "/alliances",
+                Map.of("name", "Other pact " + suffix, "colour", "#ccbbaa", "themeId", secondTheme,
+                        "memberSideIds", List.of(bravoId, charlieId))).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
+
+        Map bravoOrbat = (Map) call(admin, HttpMethod.GET, "/api/v1/sides/" + bravoId + "/standard-orbat", null).getBody();
+        String bravoRoot = (String) ((List<Map>) ((Map) bravoOrbat.get("orbatJson")).get("nodes")).get(0).get("id");
+        assertThat(call(admin, HttpMethod.POST, "/api/v1/users/mark-from-node",
+                Map.of("standardOrbatId", id(bravoOrbat), "standardNodeId", bravoRoot, "name", "ally" + suffix,
+                        "password", "secret1", "roleIds", List.of(commanderRole))).getStatusCode())
+                .isEqualTo(HttpStatus.CREATED);
+        Long allianceVersion = ((Number) alliancePlaying.get("version")).longValue();
+        assertThat(call(admin, HttpMethod.PUT, orbats + "/" + alliancePlayingId,
+                Map.of("metadata", Map.of("status", "finalized"), "version", allianceVersion)).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+        assertThat(users.findByName("ally" + suffix).orElseThrow().getPlayingOrbatId()).isEqualTo(alliancePlayingId);
+        assertThat(call(admin, HttpMethod.POST, "/api/v1/games/" + gameId + "/activate", null).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
+        Map allyPicture = (Map) call(token("ally" + suffix, "secret1"), HttpMethod.GET, "/api/v1/situation", null).getBody();
+        assertThat(idsOf(allyPicture)).containsExactly(alliancePlayingId);
+        Map allyOrbat = (Map) ((List) allyPicture.get("orbats")).get(0);
+        assertThat(allyOrbat.get("alliance")).isEqualTo(true);
+        assertThat(((List<Map>) allyOrbat.get("nodes")).stream().map(n -> ((Number) n.get("homeSideId")).longValue()).toList())
+                .contains(bravoId, charlieId);
+        assertSituation(token("cmd" + suffix, "secret1"), gameId, playingId);
+        assertThat(idsOf((Map) call(admin, HttpMethod.GET, "/api/v1/situation", null).getBody()))
+                .contains(playingId, alliancePlayingId);
 
         assertThat(((List) call(admin, HttpMethod.GET, "/api/v1/games/" + gameId + "/alliances", null).getBody()))
                 .hasSize(1);
+        assertThat(call(admin, HttpMethod.DELETE, orbats + "/" + alliancePlayingId, null).getStatusCode())
+                .isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(((List) call(admin, HttpMethod.GET, "/api/v1/games/" + gameId + "/alliances", null).getBody()))
+                .isEmpty();
+        assertThat(call(admin, HttpMethod.GET, "/api/v1/sides/" + allianceSideId, null).getStatusCode())
+                .isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(call(admin, HttpMethod.POST, orbats + "/replica", Map.of("sideId", charlieId)).getStatusCode())
+                .isEqualTo(HttpStatus.CREATED);
         // country sides carry neither game nor scenario
         Map alphaAgain = (Map) call(admin, HttpMethod.GET, "/api/v1/sides/" + alphaId, null).getBody();
         assertThat(alphaAgain.get("gameId")).isNull();
@@ -351,6 +427,120 @@ class MastersAndOrbatFlowTest {
         assertThat(call(admin, HttpMethod.GET, "/api/v1/users/999999", null).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
+    @Test
+    void nodeTypePropertiesRoundTripAndOrbatRules() {
+        String admin = token("APEX", "123");
+        String suffix = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
+        String parentCode = "WING" + suffix;
+        String renamedCode = "WING2" + suffix;
+        String childCode = "FLIGHT" + suffix;
+
+        Map<String, Object> parent = created(call(admin, HttpMethod.POST, "/api/v1/node-types",
+                nodeTypeBody(parentCode, "Wing", null)));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> parentProperties = (Map<String, Object>) parent.get("properties");
+        assertThat(parentProperties.get("seeded")).isEqualTo(false);
+        assertThat(parentProperties.get("root")).isEqualTo(false);
+        assertThat(parentProperties).doesNotContainKey("parents");
+
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("seeded", false);
+        properties.put("root", false);
+        properties.put("parents", List.of(parentCode.toLowerCase()));
+        properties.put("fields", List.of(
+                choiceField("role", "Role", true, List.of("Air Defence", "assault")),
+                choiceField("strength", "Strength", false, null)));
+        ((Map<String, Object>) ((List<?>) properties.get("fields")).get(1)).put("type", "number");
+        ((Map<String, Object>) ((List<?>) properties.get("fields")).get(1)).remove("options");
+        Map<String, Object> child = created(call(admin, HttpMethod.POST, "/api/v1/node-types",
+                nodeTypeBody(childCode, "Flight", properties)));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> stored = (Map<String, Object>) child.get("properties");
+        assertThat(stored.get("parents")).isEqualTo(List.of(parentCode));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> storedFields = (List<Map<String, Object>>) stored.get("fields");
+        assertThat(storedFields.get(0).get("options")).isEqualTo(List.of("air_defence", "assault"));
+        assertThat(storedFields.get(1)).doesNotContainKey("options");
+
+        ResponseEntity<Object> seededAttempt = call(admin, HttpMethod.POST, "/api/v1/node-types",
+                nodeTypeBody("BAD" + suffix, "Bad", Map.of("seeded", true)));
+        assertThat(seededAttempt.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(fieldErrors(seededAttempt)).containsEntry("properties.seeded", "Seeded types come from the catalogue.");
+        assertThat(call(admin, HttpMethod.POST, "/api/v1/node-types", nodeTypeBody(childCode, "Again", null)).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
+
+        Map<String, Object> renamedBody = nodeTypeBody(renamedCode, "Wing", NodeTypeRulesEmpty());
+        ResponseEntity<Object> renamedResponse = call(admin, HttpMethod.PUT, "/api/v1/node-types/" + id(parent), renamedBody);
+        assertThat(renamedResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> childAgain = (Map<String, Object>) call(admin, HttpMethod.GET, "/api/v1/node-types/" + id(child), null)
+                .getBody();
+        assertThat(((Map<?, ?>) childAgain.get("properties")).get("parents")).isEqualTo(List.of(renamedCode));
+
+        ResponseEntity<Object> blockedDelete = call(admin, HttpMethod.DELETE, "/api/v1/node-types/" + id(parent), null);
+        assertThat(blockedDelete.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(String.valueOf(((Map<?, ?>) blockedDelete.getBody()).get("message"))).contains("Flight");
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> catalogue = (List<Map<String, Object>>) call(admin, HttpMethod.GET, "/api/v1/node-types", null)
+                .getBody();
+        Map<String, Object> theatre = catalogue.stream().filter(type -> "THEATRE".equals(type.get("code"))).findFirst().orElseThrow();
+        Object theatreFields = ((Map<?, ?>) theatre.get("properties")).get("fields");
+        Map<String, Object> hostile = nodeTypeBody("THEATRE_RENAMED", "Theatre", Map.of("seeded", false, "root", false, "fields", List.of()));
+        hostile.put("description", theatre.get("description"));
+        hostile.put("iconPath", theatre.get("iconPath"));
+        ResponseEntity<Object> theatreUpdate = call(admin, HttpMethod.PUT, "/api/v1/node-types/" + id(theatre), hostile);
+        assertThat(theatreUpdate.getStatusCode()).isEqualTo(HttpStatus.OK);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> theatreAfter = (Map<String, Object>) theatreUpdate.getBody();
+        assertThat(theatreAfter.get("code")).isEqualTo("THEATRE");
+        assertThat(((Map<?, ?>) theatreAfter.get("properties")).get("fields")).isEqualTo(theatreFields);
+
+        Map<String, Object> side = created(call(admin, HttpMethod.POST, "/api/v1/sides", force(admin, "Props " + suffix)));
+        Long sideId = id(side);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> orbat = (Map<String, Object>) call(admin, HttpMethod.GET, "/api/v1/sides/" + sideId + "/standard-orbat", null)
+                .getBody();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> nodes = new ArrayList<>((List<Map<String, Object>>) ((Map<?, ?>) orbat.get("orbatJson")).get("nodes"));
+        String rootId = (String) nodes.get(0).get("id");
+        long version = ((Number) orbat.get("version")).longValue();
+        String wingId = UUID.randomUUID().toString();
+        String flightId = UUID.randomUUID().toString();
+        nodes.add(node(wingId, rootId, id(parent), sideId, "1 Wing"));
+        Map<String, Object> flight = node(flightId, wingId, id(child), sideId, "1 Flight");
+        nodes.add(flight);
+
+        ResponseEntity<Object> missing = saveOrbat(admin, sideId, nodes, version);
+        assertThat(missing.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(String.valueOf(((Map<?, ?>) missing.getBody()).get("message"))).contains("Role");
+
+        flight.put("role", "nope");
+        assertThat(saveOrbat(admin, sideId, nodes, version).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        flight.put("role", "assault");
+        flight.put("strength", "lots");
+        ResponseEntity<Object> badNumber = saveOrbat(admin, sideId, nodes, version);
+        assertThat(badNumber.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(String.valueOf(((Map<?, ?>) badNumber.getBody()).get("message"))).contains("Strength");
+        flight.remove("strength");
+        flight.put("parentId", rootId);
+        ResponseEntity<Object> badParent = saveOrbat(admin, sideId, nodes, version);
+        assertThat(badParent.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(String.valueOf(((Map<?, ?>) badParent.getBody()).get("message"))).contains("cannot sit under");
+        flight.put("parentId", wingId);
+
+        Map<String, Object> rootOnly = created(call(admin, HttpMethod.POST, "/api/v1/node-types",
+                nodeTypeBody("TOP" + suffix, "Top", Map.of("root", true, "fields", List.of()))));
+        nodes.add(node(UUID.randomUUID().toString(), rootId, id(rootOnly), sideId, "Nested top"));
+        ResponseEntity<Object> nestedRoot = saveOrbat(admin, sideId, nodes, version);
+        assertThat(nestedRoot.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(String.valueOf(((Map<?, ?>) nestedRoot.getBody()).get("message"))).contains("only sit at the root");
+        nodes.remove(nodes.size() - 1);
+
+        ResponseEntity<Object> saved = saveOrbat(admin, sideId, nodes, version);
+        assertThat(saved.getStatusCode()).isEqualTo(HttpStatus.OK);
+    }
+
     // ---- helpers
 
     private String viewerToken(String name, String roleCode) {
@@ -374,6 +564,47 @@ class MastersAndOrbatFlowTest {
         return body;
     }
 
+    private ResponseEntity<Object> saveOrbat(String token, Long sideId, List<Map<String, Object>> nodes, long version) {
+        return call(token, HttpMethod.PUT, "/api/v1/sides/" + sideId + "/standard-orbat",
+                Map.of("orbatJson", Map.of("nodes", nodes), "version", version));
+    }
+
+    private static Map<String, Object> nodeTypeBody(String code, String name, Map<String, Object> properties) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("code", code);
+        body.put("name", name);
+        body.put("iconPath", "circle.svg");
+        if (properties != null) {
+            body.put("properties", properties);
+        }
+        return body;
+    }
+
+    private static Map<String, Object> choiceField(String key, String label, boolean required, List<String> options) {
+        Map<String, Object> field = new LinkedHashMap<>();
+        field.put("key", key);
+        field.put("label", label);
+        field.put("type", "choice");
+        field.put("required", required);
+        if (options != null) {
+            field.put("options", options);
+        }
+        return field;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, String> fieldErrors(ResponseEntity<Object> response) {
+        return (Map<String, String>) ((Map<?, ?>) response.getBody()).get("fieldErrors");
+    }
+
+    private static Map<String, Object> NodeTypeRulesEmpty() {
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("seeded", false);
+        properties.put("root", false);
+        properties.put("fields", List.of());
+        return properties;
+    }
+
     private static Map<String, Object> node(String id, String parentId, Long nodeTypeId, Long homeSideId, String name) {
         Map<String, Object> node = new LinkedHashMap<>();
         node.put("id", id);
@@ -382,6 +613,20 @@ class MastersAndOrbatFlowTest {
         node.put("homeSideId", homeSideId);
         node.put("name", name);
         return node;
+    }
+
+    private void assertSituation(String bearer, Long gameId, Long playingOrbatId) {
+        Map picture = (Map) call(bearer, HttpMethod.GET, "/api/v1/situation", null).getBody();
+        assertThat(((Number) picture.get("gameId")).longValue()).isEqualTo(gameId);
+        assertThat(idsOf(picture)).containsExactly(playingOrbatId);
+        Map shown = (Map) ((List) picture.get("orbats")).get(0);
+        assertThat((List) shown.get("nodes")).isNotEmpty();
+    }
+
+    private static List<Long> idsOf(Map picture) {
+        return ((List<Map>) picture.get("orbats")).stream()
+                .map(item -> ((Number) item.get("playingOrbatId")).longValue())
+                .toList();
     }
 
     private static Long id(Map body) {

@@ -1,16 +1,24 @@
 package com.gis.warplan.web;
 
+import java.util.Map;
+
 import org.springframework.http.HttpStatus;
 
 public class ApiException extends RuntimeException {
 
     private final String code;
     private final HttpStatus status;
+    private final Map<String, String> fieldErrors;
 
     public ApiException(String code, HttpStatus status, String message) {
+        this(code, status, message, Map.of());
+    }
+
+    public ApiException(String code, HttpStatus status, String message, Map<String, String> fieldErrors) {
         super(message);
         this.code = code;
         this.status = status;
+        this.fieldErrors = fieldErrors == null || fieldErrors.isEmpty() ? Map.of() : Map.copyOf(fieldErrors);
     }
 
     public String getCode() {
@@ -19,5 +27,9 @@ public class ApiException extends RuntimeException {
 
     public HttpStatus getStatus() {
         return status;
+    }
+
+    public Map<String, String> getFieldErrors() {
+        return fieldErrors;
     }
 }

@@ -103,54 +103,88 @@ public class OrbatSupport {
         return nodeTypes.findByCode(code).map(com.gis.warplan.domain.NodeType::getId).orElse(null);
     }
 
-    @SuppressWarnings("unchecked")
     private static void checkCatalogue(Map<String, Map<String, Object>> byId, Map<Long, com.gis.warplan.domain.NodeType> typeById) {
         for (Map<String, Object> node : byId.values()) {
             com.gis.warplan.domain.NodeType type = typeById.get(asLong(node.get("nodeTypeId")));
             Map<String, Object> properties = type.getProperties() == null ? Map.of() : type.getProperties();
-            boolean root = Boolean.TRUE.equals(properties.get("root"));
-            Object parent = node.get("parentId");
-            if (root && parent == null) {
-                continue;
-            } else if (properties.get("parents") instanceof List<?> parents && !parents.isEmpty()) {
-                if (!(parent instanceof String parentId) || !byId.containsKey(parentId)) {
-                    throw new BadRequestException("Node " + node.get("id") + " needs a parent.");
-                }
-                com.gis.warplan.domain.NodeType parentType = typeById.get(asLong(byId.get(parentId).get("nodeTypeId")));
-                String parentCode = parentType == null ? "" : parentType.getCode();
-                boolean allowed = parents.stream().anyMatch(item -> parentCode.equals(String.valueOf(item)));
-                if (!allowed) {
-                    throw new BadRequestException("A " + type.getName() + " cannot sit under " + (parentType == null ? "that node" : parentType.getName()) + ".");
-                }
+            checkParent(node, type, properties, byId, typeById);
+            checkFields(node, properties);
+        }
+    }
+
+    /**
+     * A root with no parent list can only sit at the top. A root that names parents may also sit under those
+     * types. An empty parent list means any parent, the same as a missing list.
+     */
+    private static void checkParent(Map<String, Object> node, com.gis.warplan.domain.NodeType type,
+            Map<String, Object> properties, Map<String, Map<String, Object>> byId,
+            Map<Long, com.gis.warplan.domain.NodeType> typeById) {
+        boolean root = Boolean.TRUE.equals(properties.get("root"));
+        List<?> parents = properties.get("parents") instanceof List<?> list ? list : List.of();
+        boolean restricted = !parents.isEmpty();
+        Object parent = node.get("parentId");
+        if (parent == null) {
+            if (!root && restricted) {
+                throw new BadRequestException("Node " + node.get("id") + " needs a parent.");
             }
-            if (properties.get("fields") instanceof List<?> fields) {
-                for (Object item : fields) {
-                    if (!(item instanceof Map<?, ?> field) || !Boolean.TRUE.equals(field.get("required"))) {
-                        continue;
-                    }
-                    String key = String.valueOf(field.get("key"));
-                    Object value = node.get(key);
-                    if (value == null || (value instanceof String text && text.isBlank())) {
-                        throw new BadRequestException("Node " + node.get("name") + " needs " + field.get("label") + ".");
-                    }
-                    if ("number".equals(field.get("type")) && !(value instanceof Number)) {
-                        throw new BadRequestException("Node " + node.get("name") + " needs a number for " + field.get("label") + ".");
-                    }
-                    if ("choice".equals(field.get("type")) && field.get("options") instanceof List<?> options
-                            && options.stream().noneMatch(option -> String.valueOf(value).equals(String.valueOf(option)))) {
-                        throw new BadRequestException("Node " + node.get("name") + " has an unknown " + field.get("label") + ".");
-                    }
-                    if (value instanceof Number number && "latitude".equals(key)
-                            && (number.doubleValue() < -90 || number.doubleValue() > 90)) {
-                        throw new BadRequestException("Node " + node.get("name") + " has a latitude outside -90 to 90.");
-                    }
-                    if (value instanceof Number number && "longitude".equals(key)
-                            && (number.doubleValue() < -180 || number.doubleValue() > 180)) {
-                        throw new BadRequestException("Node " + node.get("name") + " has a longitude outside -180 to 180.");
-                    }
+            return;
+        }
+        if (!(parent instanceof String parentId) || !byId.containsKey(parentId)) {
+            throw new BadRequestException("Node " + node.get("id") + " needs a parent.");
+        }
+        if (root && !restricted) {
+            throw new BadRequestException("A " + type.getName() + " can only sit at the root.");
+        }
+        if (!restricted) {
+            return;
+        }
+        com.gis.warplan.domain.NodeType parentType = typeById.get(asLong(byId.get(parentId).get("nodeTypeId")));
+        String parentCode = parentType == null ? "" : parentType.getCode();
+        boolean allowed = parents.stream().anyMatch(item -> parentCode.equals(String.valueOf(item)));
+        if (!allowed) {
+            throw new BadRequestException("A " + type.getName() + " cannot sit under "
+                    + (parentType == null ? "that node" : parentType.getName()) + ".");
+        }
+    }
+
+    private static void checkFields(Map<String, Object> node, Map<String, Object> properties) {
+        if (!(properties.get("fields") instanceof List<?> fields)) {
+            return;
+        }
+        for (Object item : fields) {
+            if (!(item instanceof Map<?, ?> field)) {
+                continue;
+            }
+            String key = String.valueOf(field.get("key"));
+            Object value = node.get(key);
+            boolean blank = value == null || (value instanceof String text && text.isBlank());
+            if (blank) {
+                if (Boolean.TRUE.equals(field.get("required"))) {
+                    throw new BadRequestException("Node " + node.get("name") + " needs " + field.get("label") + ".");
                 }
+                continue;
+            }
+            if ("number".equals(field.get("type")) && !(value instanceof Number number && finite(number))) {
+                throw new BadRequestException("Node " + node.get("name") + " needs a number for " + field.get("label") + ".");
+            }
+            if ("choice".equals(field.get("type")) && field.get("options") instanceof List<?> options
+                    && options.stream().noneMatch(option -> String.valueOf(value).equals(String.valueOf(option)))) {
+                throw new BadRequestException("Node " + node.get("name") + " has an unknown " + field.get("label") + ".");
+            }
+            if (value instanceof Number number && "latitude".equals(key)
+                    && (number.doubleValue() < -90 || number.doubleValue() > 90)) {
+                throw new BadRequestException("Node " + node.get("name") + " has a latitude outside -90 to 90.");
+            }
+            if (value instanceof Number number && "longitude".equals(key)
+                    && (number.doubleValue() < -180 || number.doubleValue() > 180)) {
+                throw new BadRequestException("Node " + node.get("name") + " has a longitude outside -180 to 180.");
             }
         }
+    }
+
+    private static boolean finite(Number number) {
+        double value = number.doubleValue();
+        return !Double.isNaN(value) && !Double.isInfinite(value);
     }
 
     /** Lenient read of already stored nodes. */

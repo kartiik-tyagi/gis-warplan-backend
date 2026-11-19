@@ -35,7 +35,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ApiException.class)
     public ResponseEntity<ApiError> api(ApiException exception) {
         log.warn("Request rejected code={}", exception.getCode());
-        return respond(exception.getStatus(), exception.getCode(), exception.getMessage(), Map.of());
+        return respond(exception.getStatus(), exception.getCode(), exception.getMessage(), exception.getFieldErrors());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
