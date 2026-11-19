@@ -2,6 +2,7 @@ package com.gis.warplan;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -115,6 +116,7 @@ class DomainFoundationTest {
                 bearer(token, null), String.class);
         assertThat(content.getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(content.getBody()).contains("<svg");
+        assertThat(content.getBody()).contains("var(--wp-primary)");
 
         for (String path : List.of("..%2Fapplication.yml", "%2e%2e%2f%2e%2e%2fpom.xml", "a%5C..%5Cb.svg", "%2Fetc%2Fpasswd", "C:%2Fwindows%2Fwin.ini")) {
             ResponseEntity<String> attempt = rest.exchange("/api/v1/icons/content?path=" + path, HttpMethod.GET,
@@ -149,6 +151,53 @@ class DomainFoundationTest {
         assertThat(upload(admin, unique, validSvg()).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
     }
 
+    @Test
+    void drawnSvgIsStoredRevisedAndThemed() {
+        String admin = (String) login("APEX", "123").getBody().get("token");
+        RoleEntity commander = roles.findByCode(RoleCodes.COMMANDER).orElseThrow();
+        if (users.findByName("viewer").isEmpty()) {
+            AppUser viewer = new AppUser();
+            viewer.setName("viewer");
+            viewer.setPasswordHash(passwordEncoder.encode("pw"));
+            viewer.setActive(true);
+            viewer.setRoleIds(List.of(commander.getId()));
+            users.save(viewer);
+        }
+        String viewerToken = (String) login("viewer", "pw").getBody().get("token");
+        String name = "mark-" + java.util.UUID.randomUUID().toString().substring(0, 8);
+        String svg = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\">"
+                + "<rect x=\"2\" y=\"2\" width=\"8\" height=\"8\" fill=\"var(--wp-primary)\" data-wp-fill=\"primary\"/></svg>";
+
+        assertThat(draw(viewerToken, name, "marks", "HQ mark", svg).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+
+        ResponseEntity<Map> created = draw(admin, name, "marks", "HQ mark", svg);
+        assertThat(created.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        String path = (String) created.getBody().get("path");
+        assertThat(path).isEqualTo("marks/" + name + ".svg");
+
+        ResponseEntity<String> content = rest.exchange("/api/v1/icons/content?path=" + path, HttpMethod.GET,
+                bearer(admin, null), String.class);
+        assertThat(content.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(content.getBody()).contains("var(--wp-primary)");
+        assertThat(content.getBody()).doesNotContain("<script");
+
+        ResponseEntity<Map> assets = rest.exchange("/api/v1/asset-management", HttpMethod.GET, bearer(admin, null), Map.class);
+        assertThat(((Map) assets.getBody().get("labels")).get(path)).isEqualTo("HQ mark");
+        assertThat(draw(admin, name, "marks", "HQ mark", svg).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+
+        String evil = "<svg xmlns=\"http://www.w3.org/2000/svg\"><script>alert(1)</script></svg>";
+        assertThat(draw(admin, name + "-evil", "", "", evil).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        String revised = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\">"
+                + "<circle cx=\"12\" cy=\"12\" r=\"5\" fill=\"var(--wp-error)\" data-wp-fill=\"error\"/></svg>";
+        ResponseEntity<Map> updated = revise(admin, path, "HQ mark", revised);
+        assertThat(updated.getStatusCode()).isEqualTo(HttpStatus.OK);
+        ResponseEntity<String> after = rest.exchange("/api/v1/icons/content?path=" + path, HttpMethod.GET,
+                bearer(admin, null), String.class);
+        assertThat(after.getBody()).contains("var(--wp-error)");
+        assertThat(after.getBody()).doesNotContain("var(--wp-primary)");
+    }
+
     private static String validSvg() {
         return "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"4\" height=\"4\"><rect width=\"4\" height=\"4\"/></svg>";
     }
@@ -158,6 +207,30 @@ class DomainFoundationTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         return rest.postForEntity("/api/v1/auth/login",
                 new HttpEntity<>("{\"name\":\"" + name + "\",\"password\":\"" + password + "\"}", headers), Map.class);
+    }
+
+    private ResponseEntity<Map> draw(String token, String name, String directory, String label, String svg) {
+        Map<String, String> body = new LinkedHashMap<>();
+        body.put("name", name);
+        body.put("directory", directory);
+        body.put("label", label);
+        body.put("svg", svg);
+        return rest.exchange("/api/v1/icons/draw", HttpMethod.POST, json(token, body), Map.class);
+    }
+
+    private ResponseEntity<Map> revise(String token, String path, String label, String svg) {
+        Map<String, String> body = new LinkedHashMap<>();
+        body.put("path", path);
+        body.put("label", label);
+        body.put("svg", svg);
+        return rest.exchange("/api/v1/icons/draw", HttpMethod.PUT, json(token, body), Map.class);
+    }
+
+    private HttpEntity<Map<String, String>> json(String token, Map<String, String> body) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(token);
+        return new HttpEntity<>(body, headers);
     }
 
     private ResponseEntity<String> upload(String token, String fileName, String content) {

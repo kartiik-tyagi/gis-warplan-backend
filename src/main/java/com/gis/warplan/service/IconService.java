@@ -45,10 +45,15 @@ public class IconService {
             "gif", MediaType.IMAGE_GIF,
             "webp", MediaType.valueOf("image/webp"));
 
-    private static final Map<String, String> DEFAULT_ICONS = Map.of(
+    private static final Map<String, String> LEGACY_ICONS = Map.of(
             "circle.svg", svg("<circle cx=\"8\" cy=\"8\" r=\"6\" fill=\"#2f6f4e\"/>"),
             "square.svg", svg("<rect x=\"2\" y=\"2\" width=\"12\" height=\"12\" fill=\"#1f4e79\"/>"),
             "triangle.svg", svg("<polygon points=\"8,2 14,14 2,14\" fill=\"#a23b2a\"/>"));
+
+    private static final Map<String, String> DEFAULT_ICONS = Map.of(
+            "circle.svg", svg("<circle cx=\"8\" cy=\"8\" r=\"6\" fill=\"var(--wp-primary)\" data-wp-fill=\"primary\"/>"),
+            "square.svg", svg("<rect x=\"2\" y=\"2\" width=\"12\" height=\"12\" fill=\"var(--wp-primary)\" data-wp-fill=\"primary\"/>"),
+            "triangle.svg", svg("<polygon points=\"8,2 14,14 2,14\" fill=\"var(--wp-primary)\" data-wp-fill=\"primary\"/>"));
 
     private final AssetManagementService assets;
     private final String fallbackRoot;
@@ -95,15 +100,21 @@ public class IconService {
         }
         DEFAULT_ICONS.forEach((name, content) -> {
             Path target = root.resolve(name);
-            if (Files.notExists(target)) {
-                try {
+            try {
+                if (Files.notExists(target)) {
                     Files.writeString(target, content, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
                     log.info("Seeded icon {}", name);
-                } catch (FileAlreadyExistsException ignored) {
-                    // created concurrently
-                } catch (IOException exception) {
-                    log.warn("icon.seed_failed name={} reason={}", name, exception.getMessage());
+                    return;
                 }
+                String legacy = LEGACY_ICONS.get(name);
+                if (legacy != null && normalize(Files.readString(target)).equals(normalize(legacy))) {
+                    Files.writeString(target, content, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+                    log.info("Updated seeded icon {} so it follows the active theme", name);
+                }
+            } catch (FileAlreadyExistsException ignored) {
+                // created concurrently
+            } catch (IOException exception) {
+                log.warn("icon.seed_failed name={} reason={}", name, exception.getMessage());
             }
         });
     }
@@ -150,8 +161,50 @@ public class IconService {
             throw new BadRequestException("Icon type is not supported.");
         }
         if (type.getSubtype().equals("svg+xml")) {
-            rejectUnsafeSvg(content);
+            content = drawnBytes(new String(content, StandardCharsets.UTF_8));
         }
+        return writeNew(directory, fileName, content);
+    }
+
+    /** Stores a drawing as a new SVG. The name may omit {@code .svg}. */
+    public StoredIcon draw(String directory, String name, String svg) {
+        String fileName = svgFileName(name);
+        byte[] content = drawnBytes(svg);
+        String path = writeNew(directory == null ? "" : directory, fileName, content);
+        log.info("icon.drawn path={} bytes={}", path, content.length);
+        return new StoredIcon(path, content.length);
+    }
+
+    /** Replaces the bytes of an existing SVG. The file name stays the same. */
+    public StoredIcon replaceDrawn(String relativePath, String svg) {
+        if (relativePath == null || relativePath.isBlank()) {
+            throw new BadRequestException("Icon path is required.");
+        }
+        String relative = relativePath.trim();
+        if (!relative.toLowerCase(Locale.ROOT).endsWith(".svg")) {
+            throw new BadRequestException("Icon type is not supported.");
+        }
+        byte[] content = drawnBytes(svg);
+        Path root = root();
+        Path lexical = resolveLexically(root, relative);
+        if (Files.isDirectory(lexical)) {
+            throw new BadRequestException("Icon path is not a file.");
+        }
+        Path file = resolveExisting(root, relative);
+        if (!Files.isRegularFile(file)) {
+            throw new BadRequestException("Icon path is not a file.");
+        }
+        try {
+            Files.write(file, content, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Icon could not be stored", exception);
+        }
+        String path = relative(root, lexical);
+        log.info("icon.revised path={} bytes={}", path, content.length);
+        return new StoredIcon(path, content.length);
+    }
+
+    private String writeNew(String directory, String fileName, byte[] content) {
         Path root = root();
         Path directoryPath = resolveForWrite(root, directory);
         Path target = directoryPath.resolve(fileName).normalize();
@@ -167,6 +220,38 @@ public class IconService {
             throw new IllegalStateException("Icon could not be stored", exception);
         }
         return relative(root, target);
+    }
+
+    private static byte[] drawnBytes(String svg) {
+        if (svg == null || svg.isBlank()) {
+            throw new BadRequestException("Icon file is empty.");
+        }
+        if (svg.getBytes(StandardCharsets.UTF_8).length > MAX_BYTES) {
+            throw new BadRequestException("Icon file is too large.");
+        }
+        byte[] clean = SvgIconSanitizer.sanitize(svg).getBytes(StandardCharsets.UTF_8);
+        if (clean.length == 0) {
+            throw new BadRequestException("Icon file is empty.");
+        }
+        if (clean.length > MAX_BYTES) {
+            throw new BadRequestException("Icon file is too large.");
+        }
+        return clean;
+    }
+
+    private static String svgFileName(String name) {
+        String fileName = name == null ? "" : name.trim();
+        if (!fileName.toLowerCase(Locale.ROOT).endsWith(".svg")) {
+            fileName = fileName + ".svg";
+        }
+        if (!FILE_NAME.matcher(fileName).matches()) {
+            throw new BadRequestException("Icon file name is not valid.");
+        }
+        return fileName;
+    }
+
+    private static String normalize(String text) {
+        return text == null ? "" : text.replace("\r\n", "\n").replace('\r', '\n').trim();
     }
 
     private IconNode node(Path path, String relativePath, Map<String, String> labels) {
@@ -261,14 +346,6 @@ public class IconService {
         return TYPES.get(fileName.substring(dot + 1).toLowerCase(Locale.ROOT));
     }
 
-    private static void rejectUnsafeSvg(byte[] content) {
-        String text = new String(content, StandardCharsets.UTF_8).toLowerCase(Locale.ROOT);
-        if (!text.contains("<svg") || text.contains("<script") || text.contains("javascript:")
-                || text.contains("<foreignobject") || text.contains("<!entity") || Pattern.compile("\\son\\w+\\s*=").matcher(text).find()) {
-            throw new BadRequestException("SVG content is not allowed.");
-        }
-    }
-
     private static String svg(String body) {
         return "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\">"
                 + body + "</svg>\n";
@@ -278,5 +355,8 @@ public class IconService {
     }
 
     public record IconContent(byte[] bytes, MediaType mediaType) {
+    }
+
+    public record StoredIcon(String path, int size) {
     }
 }
