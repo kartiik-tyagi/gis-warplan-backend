@@ -156,6 +156,13 @@ public class ScenarioController {
         return ResponseEntity.noContent().build();
     }
 
+    /** Clears every active game (scenario stays). Literal path before {id}. */
+    @PostMapping("/games/deactivate")
+    public ResponseEntity<Void> deactivateGames() {
+        scenarios.deactivateGames();
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping("/games/{id}/activate")
     public GameResponse activateGame(@PathVariable Long id) {
         return GameResponse.of(scenarios.activateGame(id));

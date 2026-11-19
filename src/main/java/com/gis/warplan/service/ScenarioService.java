@@ -141,14 +141,22 @@ public class ScenarioService {
             scenarios.save(scenario);
             scenariosCleared++;
         }
-        for (Game game : games.findByActiveTrue()) {
-            game.setActive(false);
-            games.save(game);
-            gamesCleared++;
-        }
+        gamesCleared = clearActiveGames();
         log.info("exercise.deactivated scenarios={} games={}", scenariosCleared, gamesCleared);
         audit.record("DEACTIVATE", "Scenario", null, "No active scenario or game",
                 Map.of("scenariosCleared", scenariosCleared, "gamesCleared", gamesCleared));
+    }
+
+    /**
+     * Clears every active game while leaving the active scenario unchanged.
+     * Requires MANAGE_GAME (same capability that chooses the active game).
+     */
+    @Transactional
+    public void deactivateGames() {
+        access.requireFunctionality(FunctionalityCodes.MANAGE_GAME);
+        int gamesCleared = clearActiveGames();
+        log.info("games.deactivated count={}", gamesCleared);
+        audit.record("DEACTIVATE", "Game", null, "No active game", Map.of("gamesCleared", gamesCleared));
     }
 
     // ---- games
@@ -266,14 +274,20 @@ public class ScenarioService {
             other.setActive(false);
             scenarios.save(other);
         }
-        for (Game game : games.findByActiveTrue()) {
-            if (!scenario.getId().equals(game.getScenarioId())) {
-                game.setActive(false);
-                games.save(game);
-            }
-        }
+        // Choosing a scenario always clears the active game; the user picks a game next.
+        clearActiveGames();
         scenario.setActive(true);
         scenarios.save(scenario);
+    }
+
+    private int clearActiveGames() {
+        int cleared = 0;
+        for (Game game : games.findByActiveTrue()) {
+            game.setActive(false);
+            games.save(game);
+            cleared++;
+        }
+        return cleared;
     }
 
     private static void applyScenarioFields(Scenario scenario, String name, String generalIdea,
