@@ -56,24 +56,24 @@ class MastersAndOrbatFlowTest {
         String admin = token("APEX", "123");
         String suffix = UUID.randomUUID().toString().substring(0, 6);
 
-        Map alpha = created(call(admin, HttpMethod.POST, "/api/v1/sides",
-                Map.of("name", "Alpha " + suffix, "colour", "#112233")));
-        Map bravo = created(call(admin, HttpMethod.POST, "/api/v1/sides", Map.of("name", "Bravo " + suffix)));
+        Map alpha = created(call(admin, HttpMethod.POST, "/api/v1/sides", force(admin, "Alpha " + suffix)));
+        Map bravo = created(call(admin, HttpMethod.POST, "/api/v1/sides", force(admin, "Bravo " + suffix)));
         Long alphaId = id(alpha);
         Long bravoId = id(bravo);
         assertThat(alpha.get("kind")).isEqualTo("country");
+        assertThat(alpha.get("themeId")).isNotNull();
+        assertThat(call(admin, HttpMethod.POST, "/api/v1/sides",
+                Map.of("name", "Other " + suffix, "themeId", alpha.get("themeId"))).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
         assertThat(call(admin, HttpMethod.POST, "/api/v1/sides", Map.of("name", "Alpha " + suffix)).getStatusCode())
                 .isEqualTo(HttpStatus.CONFLICT);
 
         Map nodeType = created(call(admin, HttpMethod.POST, "/api/v1/node-types",
                 Map.of("code", "BRIGADE" + suffix.toUpperCase(), "name", "Brigade", "iconPath", "circle.svg")));
 
-        // standard ORBAT: create root, then save a two-level tree
-        ResponseEntity<Object> noOrbat = call(admin, HttpMethod.GET, "/api/v1/sides/" + alphaId + "/standard-orbat", null);
-        assertThat(noOrbat.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
-        ResponseEntity<Object> createdOrbat = call(admin, HttpMethod.POST,
-                "/api/v1/sides/" + alphaId + "/standard-orbat", null);
-        assertThat(createdOrbat.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        // the force and its root are created together; a second create returns the same tree
+        ResponseEntity<Object> createdOrbat = call(admin, HttpMethod.GET, "/api/v1/sides/" + alphaId + "/standard-orbat", null);
+        assertThat(createdOrbat.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map orbat = (Map) createdOrbat.getBody();
         assertThat(call(admin, HttpMethod.POST, "/api/v1/sides/" + alphaId + "/standard-orbat", null).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
@@ -130,6 +130,7 @@ class MastersAndOrbatFlowTest {
         Map before = (Map) login("cmd" + suffix, "secret1").getBody().get("me");
         assertThat(before.get("canWork")).isEqualTo(false);
         assertThat(before.get("workBlockedReason")).isEqualTo("NO_ACTIVE_SCENARIO");
+        assertThat(((Number) before.get("themeId")).longValue()).isEqualTo(((Number) alpha.get("themeId")).longValue());
 
         // scenario, games, replica, finalize
         Map scenario = created(call(admin, HttpMethod.POST, "/api/v1/scenarios", Map.of("name", "Scn " + suffix)));
@@ -228,9 +229,12 @@ class MastersAndOrbatFlowTest {
 
         // alliance of Alpha and Bravo (Bravo gets a standard ORBAT first)
         call(admin, HttpMethod.POST, "/api/v1/sides/" + bravoId + "/standard-orbat", null);
+        Long allianceTheme = id(created(call(admin, HttpMethod.POST, "/api/v1/themes",
+                Map.of("name", "Pact theme " + suffix, "configJson", Map.of("mode", "dark")))));
         ResponseEntity<Object> alliance = call(admin, HttpMethod.POST,
                 "/api/v1/games/" + gameId + "/alliances",
-                Map.of("name", "Pact " + suffix, "colour", "#aabbcc", "memberSideIds", List.of(alphaId, bravoId)));
+                Map.of("name", "Pact " + suffix, "colour", "#aabbcc", "themeId", allianceTheme,
+                        "memberSideIds", List.of(alphaId, bravoId)));
         assertThat(alliance.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         Map allianceBody = (Map) alliance.getBody();
         assertThat(((Map) allianceBody.get("side")).get("kind")).isEqualTo("alliance");
@@ -294,8 +298,8 @@ class MastersAndOrbatFlowTest {
     void sideAdministratorIsScopedAndCannotEscalate() {
         String admin = token("APEX", "123");
         String suffix = UUID.randomUUID().toString().substring(0, 6);
-        Long own = id(created(call(admin, HttpMethod.POST, "/api/v1/sides", Map.of("name", "Own " + suffix))));
-        Long foreign = id(created(call(admin, HttpMethod.POST, "/api/v1/sides", Map.of("name", "Foreign " + suffix))));
+        Long own = id(created(call(admin, HttpMethod.POST, "/api/v1/sides", force(admin, "Own " + suffix))));
+        Long foreign = id(created(call(admin, HttpMethod.POST, "/api/v1/sides", force(admin, "Foreign " + suffix))));
 
         AppUser sideAdmin = new AppUser();
         sideAdmin.setName("tadmin" + suffix);
@@ -314,7 +318,7 @@ class MastersAndOrbatFlowTest {
         assertThat(call(token, HttpMethod.POST, "/api/v1/sides/" + foreign + "/standard-orbat", null).getStatusCode())
                 .isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(call(token, HttpMethod.POST, "/api/v1/sides/" + own + "/standard-orbat", null).getStatusCode())
-                .isEqualTo(HttpStatus.CREATED);
+                .isEqualTo(HttpStatus.OK);
 
         List<Map> visible = (List<Map>) call(token, HttpMethod.GET, "/api/v1/users", null).getBody();
         assertThat(visible).extracting(u -> u.get("name")).containsExactly("tadmin" + suffix);
@@ -358,6 +362,16 @@ class MastersAndOrbatFlowTest {
             users.save(user);
         }
         return token(name, "pw1234");
+    }
+
+    private Map<String, Object> force(String token, String name) {
+        Long themeId = id(created(call(token, HttpMethod.POST, "/api/v1/themes",
+                Map.of("name", "Theme " + name, "configJson", Map.of("mode", "dark")))));
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("name", name);
+        body.put("themeId", themeId);
+        body.put("colour", "#112233");
+        return body;
     }
 
     private static Map<String, Object> node(String id, String parentId, Long nodeTypeId, Long homeSideId, String name) {

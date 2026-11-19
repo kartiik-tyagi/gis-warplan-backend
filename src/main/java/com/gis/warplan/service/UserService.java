@@ -43,13 +43,13 @@ public class UserService {
     private final SideRepository sides;
     private final UserSessionRepository sessions;
     private final PasswordEncoder passwordEncoder;
-    private final ThemeService themes;
+    private final ThemeAllotmentService allotment;
     private final AccessService access;
     private final AuditService audit;
 
     public UserService(AppUserRepository users, RoleRepository roles, FunctionalityRepository functionalities,
             StandardOrbatRepository standardOrbats, SideRepository sides, UserSessionRepository sessions,
-            PasswordEncoder passwordEncoder, ThemeService themes, AccessService access, AuditService audit) {
+            PasswordEncoder passwordEncoder, ThemeAllotmentService allotment, AccessService access, AuditService audit) {
         this.users = users;
         this.roles = roles;
         this.functionalities = functionalities;
@@ -57,7 +57,7 @@ public class UserService {
         this.sides = sides;
         this.sessions = sessions;
         this.passwordEncoder = passwordEncoder;
-        this.themes = themes;
+        this.allotment = allotment;
         this.access = access;
         this.audit = audit;
     }
@@ -79,9 +79,54 @@ public class UserService {
         return user;
     }
 
+    /**
+     * Traditional account, not tied to an ORBAT node. A home side is optional; without one the account needs
+     * its own exclusive theme. With a side, an empty theme means the user inherits that side.
+     */
+    @Transactional
+    public AppUser create(String name, String password, List<Long> roleIds, Long administeredSideId, Long themeId) {
+        access.requireFunctionality(FunctionalityCodes.MANAGE_USERS);
+        String trimmed = name.trim();
+        if (ThemeAllotmentService.APEX_NAME.equals(trimmed)) {
+            throw new ConflictException("APEX already exists.");
+        }
+        if (users.findByName(trimmed).isPresent()) {
+            throw new ConflictException("A user with this name already exists.");
+        }
+        Long sideId = administeredSideId;
+        if (access.isSideScoped()) {
+            Long own = access.administeredSideId();
+            if (sideId != null && !own.equals(sideId)) {
+                throw new ForbiddenException("You can only create users for the side you administer.");
+            }
+            sideId = own;
+        } else if (sideId != null && !sides.existsById(sideId)) {
+            throw new BadRequestException("Side " + sideId + " does not exist.");
+        }
+        if (themeId != null) {
+            allotment.requireAllottableToUser(themeId, null);
+        } else if (sideId == null) {
+            throw new BadRequestException("A user without a side needs a theme.");
+        } else if (sides.findById(sideId).map(side -> side.getThemeId() == null).orElse(true)) {
+            throw new BadRequestException("That side has no theme to inherit.");
+        }
+        List<Long> checked = assignableRoles(roleIds);
+        AppUser user = new AppUser();
+        user.setName(trimmed);
+        user.setPasswordHash(passwordEncoder.encode(password));
+        user.setRoleIds(checked);
+        user.setActive(true);
+        user.setAdministeredSideId(sideId);
+        user.setThemeId(themeId);
+        AppUser saved = users.save(user);
+        audit.record("CREATE", "AppUser", saved.getId(), "User " + saved.getName() + " created",
+                Map.of("administeredSideId", String.valueOf(sideId), "themeId", String.valueOf(themeId)));
+        return saved;
+    }
+
     @Transactional
     public AppUser patch(Long id, String name, String password, List<Long> roleIds, Boolean active,
-            Long administeredSideId, Long themeId) {
+            Long administeredSideId, Long themeId, Boolean clearTheme) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_USERS);
         UserPrincipal caller = access.requirePrincipal();
         AppUser user = find(id);
@@ -142,8 +187,14 @@ public class UserService {
             user.setAdministeredSideId(administeredSideId);
             changed.put("administeredSideId", administeredSideId);
         }
-        if (themeId != null) {
-            themes.requireExists(themeId);
+        if (Boolean.TRUE.equals(clearTheme) && themeId != null) {
+            throw new BadRequestException("Clear the theme or allot a new one.");
+        }
+        if (Boolean.TRUE.equals(clearTheme)) {
+            allotment.clearOverride(user);
+            changed.put("themeId", null);
+        } else if (themeId != null) {
+            allotment.requireAllottableToUser(themeId, user.getId());
             user.setThemeId(themeId);
             changed.put("themeId", themeId);
         }
@@ -158,8 +209,11 @@ public class UserService {
     @Transactional
     public AppUser chooseTheme(Long themeId) {
         access.requireFunctionality(FunctionalityCodes.CHOOSE_THEME);
-        themes.requireExists(themeId);
         AppUser user = find(access.requirePrincipal().userId());
+        if (!allotment.isApex(user)) {
+            throw new ForbiddenException("Only APEX chooses the login theme. Other accounts inherit a side theme or receive an override from user management.");
+        }
+        allotment.requireAllottableToUser(themeId, user.getId());
         user.setThemeId(themeId);
         AppUser saved = users.save(user);
         audit.record("UPDATE", "AppUser", saved.getId(), "User " + saved.getName() + " chose a theme",
@@ -169,7 +223,7 @@ public class UserService {
 
     @Transactional
     public AppUser markFromNode(Long standardOrbatId, String standardNodeId, String name, String password,
-            List<Long> roleIds) {
+            List<Long> roleIds, Long themeId) {
         access.requireFunctionality(FunctionalityCodes.MARK_AS_USER);
         StandardOrbat orbat = standardOrbats.findById(standardOrbatId)
                 .orElseThrow(() -> new NotFoundException("Standard ORBAT not found."));
@@ -185,8 +239,11 @@ public class UserService {
             }
         }
         String trimmed = name.trim();
-        if (users.findByName(trimmed).isPresent()) {
+        if (ThemeAllotmentService.APEX_NAME.equals(trimmed) || users.findByName(trimmed).isPresent()) {
             throw new ConflictException("A user with this name already exists.");
+        }
+        if (themeId != null) {
+            allotment.requireAllottableToUser(themeId, null);
         }
         List<Long> checked = assignableRoles(roleIds);
         AppUser user = new AppUser();
@@ -196,6 +253,7 @@ public class UserService {
         user.setActive(true);
         user.setStandardOrbatId(standardOrbatId);
         user.setStandardNodeId(standardNodeId);
+        user.setThemeId(themeId);
         AppUser saved = users.save(user);
         audit.record("MARK_USER", "AppUser", saved.getId(), "Node " + standardNodeId + " marked as user " + trimmed,
                 Map.of("standardOrbatId", standardOrbatId, "standardNodeId", standardNodeId, "roleIds", checked));

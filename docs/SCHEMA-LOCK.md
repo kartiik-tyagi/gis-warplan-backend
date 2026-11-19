@@ -20,6 +20,7 @@ Do not invent substitute fields (`description` / `configJson` / `status` on scen
 | app_user | Working | id, name, password_hash, role_ids, administered_side_id, active, theme_id, standard_orbat_id, standard_node_id, playing_orbat_id, playing_node_id, last_login_at, created_at, updated_at |
 | user_session | Audit | id, user_id, login_at, logout_at, success, failure_reason, ip_address, user_agent, location_text, session_token_id, created_at (+ JWT expires_at / revoked_at for revoke) |
 | audit_log | Audit | id, occurred_at, actor_user_id, session_id, action, entity_type, entity_id, summary, detail_json, ip_address, user_agent, request_id |
+| asset_management | Config | id, path, labels (JSON: user id → {relative icon path → label}), last_updated, updated_by (app_user id) — **single row** |
 | gis_server / map_layer / map_view_defaults | Map | unchanged |
 
 ## Logic rules
@@ -32,6 +33,7 @@ Do not invent substitute fields (`description` / `configJson` / `status` on scen
 - `POST /scenarios/deactivate` clears all active scenarios and games (no open exercise).
 - Scenario narrative fields and game `description` store sanitized HTML rich text (not plain-only).
 - ORBAT: tree in `orbat_json`; lifecycle extras in `metadata`; nodes use `homeSideId`.
+- Icons: `asset_management` is a singleton created on first use with `path = warplan.icons.root` (default `images/icon`). `IconService` lists/previews/uploads under that `path`. Labels are **per user**: `labels[userId][relativePath]`, defaulting to the file name — each user sees and edits only their own. Only the label is editable (file and folder names are immutable). Path and label writes need `MANAGE_ICONS`; a write-lock on the shared row serializes concurrent label edits.
 
 ## DB note
 

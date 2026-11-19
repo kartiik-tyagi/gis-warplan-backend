@@ -104,7 +104,7 @@ public class PlayingOrbatController {
             @NotBlank @Size(max = 120) String name,
             @Pattern(regexp = "^#[0-9A-Fa-f]{6}$") String colour,
             @Size(max = 300) String icon,
-            Long themeId,
+            @NotNull Long themeId,
             @NotEmpty List<Long> memberSideIds) {
     }
 

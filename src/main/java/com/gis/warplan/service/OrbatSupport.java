@@ -67,13 +67,11 @@ public class OrbatSupport {
             if (parent != null && (!(parent instanceof String text) || text.isBlank() || text.equals(id))) {
                 throw new BadRequestException("Node " + id + " has an invalid parentId.");
             }
-            if (node.get("nodeTypeId") != null) {
-                Long typeId = asLong(node.get("nodeTypeId"));
-                if (typeId == null) {
-                    throw new BadRequestException("Node " + id + " has an invalid nodeTypeId.");
-                }
-                typeIds.add(typeId);
+            Long typeId = asLong(node.get("nodeTypeId"));
+            if (typeId == null) {
+                throw new BadRequestException("Node " + id + " needs a node type.");
             }
+            typeIds.add(typeId);
             Long homeSide = asLong(node.get("homeSideId"));
             if (homeSide == null) {
                 throw new BadRequestException("Node " + id + " needs a numeric homeSideId.");
@@ -87,13 +85,72 @@ public class OrbatSupport {
             }
         }
         rejectCycles(byId);
-        if (!typeIds.isEmpty() && nodeTypes.findAllById(typeIds).size() != typeIds.size()) {
+        Map<Long, com.gis.warplan.domain.NodeType> typeById = new java.util.HashMap<>();
+        for (com.gis.warplan.domain.NodeType type : nodeTypes.findAllById(typeIds)) {
+            typeById.put(type.getId(), type);
+        }
+        if (typeById.size() != typeIds.size()) {
             throw new BadRequestException("One or more nodeTypeId values do not exist.");
         }
         if (sides.findAllById(sideIds).size() != sideIds.size()) {
             throw new BadRequestException("One or more homeSideId values do not exist.");
         }
+        checkCatalogue(byId, typeById);
         return new ArrayList<>(byId.values());
+    }
+
+    public Long idOf(String code) {
+        return nodeTypes.findByCode(code).map(com.gis.warplan.domain.NodeType::getId).orElse(null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void checkCatalogue(Map<String, Map<String, Object>> byId, Map<Long, com.gis.warplan.domain.NodeType> typeById) {
+        for (Map<String, Object> node : byId.values()) {
+            com.gis.warplan.domain.NodeType type = typeById.get(asLong(node.get("nodeTypeId")));
+            Map<String, Object> properties = type.getProperties() == null ? Map.of() : type.getProperties();
+            boolean root = Boolean.TRUE.equals(properties.get("root"));
+            Object parent = node.get("parentId");
+            if (root && parent == null) {
+                continue;
+            } else if (properties.get("parents") instanceof List<?> parents && !parents.isEmpty()) {
+                if (!(parent instanceof String parentId) || !byId.containsKey(parentId)) {
+                    throw new BadRequestException("Node " + node.get("id") + " needs a parent.");
+                }
+                com.gis.warplan.domain.NodeType parentType = typeById.get(asLong(byId.get(parentId).get("nodeTypeId")));
+                String parentCode = parentType == null ? "" : parentType.getCode();
+                boolean allowed = parents.stream().anyMatch(item -> parentCode.equals(String.valueOf(item)));
+                if (!allowed) {
+                    throw new BadRequestException("A " + type.getName() + " cannot sit under " + (parentType == null ? "that node" : parentType.getName()) + ".");
+                }
+            }
+            if (properties.get("fields") instanceof List<?> fields) {
+                for (Object item : fields) {
+                    if (!(item instanceof Map<?, ?> field) || !Boolean.TRUE.equals(field.get("required"))) {
+                        continue;
+                    }
+                    String key = String.valueOf(field.get("key"));
+                    Object value = node.get(key);
+                    if (value == null || (value instanceof String text && text.isBlank())) {
+                        throw new BadRequestException("Node " + node.get("name") + " needs " + field.get("label") + ".");
+                    }
+                    if ("number".equals(field.get("type")) && !(value instanceof Number)) {
+                        throw new BadRequestException("Node " + node.get("name") + " needs a number for " + field.get("label") + ".");
+                    }
+                    if ("choice".equals(field.get("type")) && field.get("options") instanceof List<?> options
+                            && options.stream().noneMatch(option -> String.valueOf(value).equals(String.valueOf(option)))) {
+                        throw new BadRequestException("Node " + node.get("name") + " has an unknown " + field.get("label") + ".");
+                    }
+                    if (value instanceof Number number && "latitude".equals(key)
+                            && (number.doubleValue() < -90 || number.doubleValue() > 90)) {
+                        throw new BadRequestException("Node " + node.get("name") + " has a latitude outside -90 to 90.");
+                    }
+                    if (value instanceof Number number && "longitude".equals(key)
+                            && (number.doubleValue() < -180 || number.doubleValue() > 180)) {
+                        throw new BadRequestException("Node " + node.get("name") + " has a longitude outside -180 to 180.");
+                    }
+                }
+            }
+        }
     }
 
     /** Lenient read of already stored nodes. */
@@ -116,11 +173,11 @@ public class OrbatSupport {
         return document;
     }
 
-    public static Map<String, Object> rootNode(String name, Long homeSideId) {
+    public static Map<String, Object> rootNode(String name, Long homeSideId, Long nodeTypeId) {
         Map<String, Object> node = new LinkedHashMap<>();
         node.put("id", UUID.randomUUID().toString());
         node.put("parentId", null);
-        node.put("nodeTypeId", null);
+        node.put("nodeTypeId", nodeTypeId);
         node.put("homeSideId", homeSideId);
         node.put("name", name);
         return node;

@@ -56,20 +56,33 @@ public class StandardOrbatService {
         if (!existing.isEmpty()) {
             return new Created(existing.get(0), false);
         }
+        return new Created(createRootIfAbsent(side), true);
+    }
+
+    /**
+     * Inserts the side root when the country side has no standard ORBAT. Callers have already checked access.
+     * Returns the existing row when one is already there.
+     */
+    @Transactional
+    public StandardOrbat createRootIfAbsent(Side side) {
+        List<StandardOrbat> existing = orbats.findBySideId(side.getId());
+        if (!existing.isEmpty()) {
+            return existing.get(0);
+        }
         if (!SideService.KIND_COUNTRY.equals(side.getKind())) {
             throw new BadRequestException("Only country sides have a standard ORBAT.");
         }
         StandardOrbat orbat = new StandardOrbat();
         orbat.setName(side.getName());
-        orbat.setSideId(sideId);
-        orbat.setOrbatJson(OrbatSupport.document(List.of(OrbatSupport.rootNode(side.getName(), sideId))));
+        orbat.setSideId(side.getId());
+        orbat.setOrbatJson(OrbatSupport.document(List.of(OrbatSupport.rootNode(side.getName(), side.getId(), support.idOf("COUNTRY")))));
         orbat.setMetadata(new java.util.LinkedHashMap<>());
         access.currentPrincipal().ifPresent(principal -> orbat.setUpdatedBy(principal.userId()));
         StandardOrbat saved = orbats.saveAndFlush(orbat);
-        log.info("standard_orbat.created id={} sideId={}", saved.getId(), sideId);
+        log.info("standard_orbat.created id={} sideId={}", saved.getId(), side.getId());
         audit.record("CREATE", "StandardOrbat", saved.getId(), "Standard ORBAT created for " + side.getName(),
-                Map.of("sideId", sideId));
-        return new Created(saved, true);
+                Map.of("sideId", side.getId()));
+        return saved;
     }
 
     @Transactional
@@ -81,8 +94,11 @@ public class StandardOrbatService {
         if (!Objects.equals(orbat.getVersion(), version)) {
             throw new ConflictException("The standard ORBAT was changed by someone else. Reload and try again.");
         }
-        int nodes = support.validate(orbatJson).size();
+        List<Map<String, Object>> validated = support.validate(orbatJson);
+        syncSideName(sideId, validated);
+        int nodes = validated.size();
         orbat.setOrbatJson(orbatJson);
+        orbat.setName(side(sideId).getName());
         if (metadata != null) {
             orbat.setMetadata(metadata);
         }
@@ -92,6 +108,25 @@ public class StandardOrbatService {
         audit.record("UPDATE", "StandardOrbat", saved.getId(), "Standard ORBAT saved for side " + sideId,
                 Map.of("sideId", sideId, "nodes", nodes, "version", saved.getVersion()));
         return saved;
+    }
+
+    /** The root node is the side, so its name is the side name. */
+    private void syncSideName(Long sideId, List<Map<String, Object>> nodes) {
+        Map<String, Object> root = nodes.stream().filter(node -> node.get("parentId") == null).findFirst().orElse(null);
+        if (root == null || !(root.get("name") instanceof String name) || name.isBlank()) {
+            return;
+        }
+        Side side = side(sideId);
+        if (name.equals(side.getName())) {
+            return;
+        }
+        boolean taken = sides.findByName(name).stream()
+                .anyMatch(other -> !other.getId().equals(sideId) && Objects.equals(other.getGameId(), side.getGameId()));
+        if (taken) {
+            throw new ConflictException("A side with this name already exists.");
+        }
+        side.setName(name);
+        sides.save(side);
     }
 
     private Side side(Long sideId) {

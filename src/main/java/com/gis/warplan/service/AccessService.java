@@ -15,11 +15,9 @@ import com.gis.warplan.domain.AppUser;
 import com.gis.warplan.domain.Functionality;
 import com.gis.warplan.domain.RoleCodes;
 import com.gis.warplan.domain.RoleEntity;
-import com.gis.warplan.domain.Theme;
 import com.gis.warplan.repository.AppUserRepository;
 import com.gis.warplan.repository.FunctionalityRepository;
 import com.gis.warplan.repository.RoleRepository;
-import com.gis.warplan.repository.ThemeRepository;
 import com.gis.warplan.security.UserPrincipal;
 import com.gis.warplan.web.ForbiddenException;
 import com.gis.warplan.web.UnauthorizedException;
@@ -29,15 +27,15 @@ public class AccessService {
 
     private final RoleRepository roles;
     private final FunctionalityRepository functionalities;
-    private final ThemeRepository themes;
     private final AppUserRepository users;
+    private final ThemeAllotmentService allotment;
 
-    public AccessService(RoleRepository roles, FunctionalityRepository functionalities, ThemeRepository themes,
-            AppUserRepository users) {
+    public AccessService(RoleRepository roles, FunctionalityRepository functionalities, AppUserRepository users,
+            ThemeAllotmentService allotment) {
         this.roles = roles;
         this.functionalities = functionalities;
-        this.themes = themes;
         this.users = users;
+        this.allotment = allotment;
     }
 
     public Optional<UserPrincipal> currentPrincipal() {
@@ -146,12 +144,10 @@ public class AccessService {
         return codes;
     }
 
+    /** Own theme when one is allotted, otherwise the home side's theme. */
     @Transactional(readOnly = true)
     public Long resolveThemeId(AppUser user) {
-        if (user.getThemeId() != null && themes.existsById(user.getThemeId())) {
-            return user.getThemeId();
-        }
-        return themes.findFirstByDefaultThemeTrueOrderByIdAsc().map(Theme::getId).orElse(null);
+        return allotment.displayThemeId(user);
     }
 
     private List<RoleEntity> rolesOf(AppUser user) {

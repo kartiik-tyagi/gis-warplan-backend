@@ -15,4 +15,6 @@ public interface SideRepository extends JpaRepository<Side, Long> {
     List<Side> findByKind(String kind);
 
     long countByThemeId(Long themeId);
+
+    List<Side> findByThemeId(Long themeId);
 }

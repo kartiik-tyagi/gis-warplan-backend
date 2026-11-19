@@ -210,7 +210,7 @@ public class PlayingOrbatService {
             allianceMembers.save(row);
         }
 
-        Map<String, Object> root = OrbatSupport.rootNode(alliance.getName(), alliance.getId());
+        Map<String, Object> root = OrbatSupport.rootNode(alliance.getName(), alliance.getId(), support.idOf("ALLIANCE"));
         List<Map<String, Object>> nodes = new ArrayList<>();
         nodes.add(root);
         for (Side member : memberSides) {

@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.gis.warplan.domain.FunctionalityCodes;
 import com.gis.warplan.domain.Theme;
 import com.gis.warplan.service.AccessService;
+import com.gis.warplan.service.ThemeAllotmentService;
+import com.gis.warplan.service.ThemeAllotmentService.Holder;
 import com.gis.warplan.service.ThemeService;
 
 import jakarta.validation.Valid;
@@ -30,36 +32,38 @@ import jakarta.validation.constraints.Size;
 public class ThemeController {
 
     private final ThemeService themes;
+    private final ThemeAllotmentService allotment;
     private final AccessService access;
 
-    public ThemeController(ThemeService themes, AccessService access) {
+    public ThemeController(ThemeService themes, ThemeAllotmentService allotment, AccessService access) {
         this.themes = themes;
+        this.allotment = allotment;
         this.access = access;
     }
 
     @GetMapping
     public List<ThemeResponse> list() {
         access.requirePrincipal();
-        return themes.list().stream().map(ThemeResponse::of).toList();
+        return themes.list().stream().map(this::toResponse).toList();
     }
 
     @GetMapping("/{id}")
     public ThemeResponse get(@PathVariable Long id) {
         access.requirePrincipal();
-        return ThemeResponse.of(themes.get(id));
+        return toResponse(themes.get(id));
     }
 
     @PostMapping
     public ResponseEntity<ThemeResponse> create(@Valid @RequestBody ThemeRequest request) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_THEMES);
         Theme theme = themes.create(request.name(), request.description(), request.defaultTheme(), request.configJson());
-        return ResponseEntity.status(HttpStatus.CREATED).body(ThemeResponse.of(theme));
+        return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(theme));
     }
 
     @PutMapping("/{id}")
     public ThemeResponse update(@PathVariable Long id, @Valid @RequestBody ThemeRequest request) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_THEMES);
-        return ThemeResponse.of(themes.update(id, request.name(), request.description(), request.defaultTheme(),
+        return toResponse(themes.update(id, request.name(), request.description(), request.defaultTheme(),
                 request.configJson()));
     }
 
@@ -78,11 +82,14 @@ public class ThemeController {
     }
 
     public record ThemeResponse(Long id, String name, String description, boolean defaultTheme,
-            Map<String, Object> configJson, Instant createdAt, Instant updatedAt) {
+            Map<String, Object> configJson, String holderKind, Long holderId, String holderName, boolean loginTheme,
+            Instant createdAt, Instant updatedAt) {
+    }
 
-        static ThemeResponse of(Theme theme) {
-            return new ThemeResponse(theme.getId(), theme.getName(), theme.getDescription(), theme.isDefaultTheme(),
-                    theme.getConfigJson(), theme.getCreatedAt(), theme.getUpdatedAt());
-        }
+    private ThemeResponse toResponse(Theme theme) {
+        Holder holder = allotment.holderOf(theme.getId());
+        return new ThemeResponse(theme.getId(), theme.getName(), theme.getDescription(), theme.isDefaultTheme(),
+                theme.getConfigJson(), holder.kind(), holder.id(), holder.name(), holder.loginTheme(),
+                theme.getCreatedAt(), theme.getUpdatedAt());
     }
 }

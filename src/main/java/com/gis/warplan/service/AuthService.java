@@ -14,7 +14,6 @@ import com.gis.warplan.domain.AppUser;
 import com.gis.warplan.domain.Theme;
 import com.gis.warplan.domain.UserSession;
 import com.gis.warplan.repository.AppUserRepository;
-import com.gis.warplan.repository.ThemeRepository;
 import com.gis.warplan.repository.UserSessionRepository;
 import com.gis.warplan.security.JwtService;
 import com.gis.warplan.security.JwtService.IssuedToken;
@@ -32,19 +31,19 @@ public class AuthService {
 
     private final AppUserRepository users;
     private final UserSessionRepository sessions;
-    private final ThemeRepository themes;
+    private final ThemeAllotmentService allotment;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AccessService access;
     private final AuditService audit;
     private final ActivationService activation;
 
-    public AuthService(AppUserRepository users, UserSessionRepository sessions, ThemeRepository themes,
+    public AuthService(AppUserRepository users, UserSessionRepository sessions, ThemeAllotmentService allotment,
             PasswordEncoder passwordEncoder, JwtService jwtService, AccessService access, AuditService audit,
             ActivationService activation) {
         this.users = users;
         this.sessions = sessions;
-        this.themes = themes;
+        this.allotment = allotment;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.access = access;
@@ -54,11 +53,11 @@ public class AuthService {
 
     @Transactional(readOnly = true)
     public LoginContext loginContext() {
-        Theme theme = themes.findFirstByDefaultThemeTrueOrderByIdAsc()
-                .orElseThrow(() -> {
-                    log.error("login_context.unavailable reason=no_default_theme");
-                    return new UnavailableException("The login theme is not configured.");
-                });
+        Theme theme = allotment.loginTheme();
+        if (theme == null) {
+            log.error("login_context.unavailable reason=apex_theme_missing");
+            throw new UnavailableException("The login theme is not configured.");
+        }
         List<LoginUser> activeUsers = users.findByActiveTrueOrderByNameAsc().stream()
                 .map(user -> new LoginUser(user.getId(), user.getName()))
                 .toList();

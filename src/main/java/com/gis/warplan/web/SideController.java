@@ -54,7 +54,7 @@ public class SideController {
 
     @PostMapping
     public ResponseEntity<SideResponse> create(@Valid @RequestBody SideRequest request) {
-        access.requireFunctionality(FunctionalityCodes.MANAGE_SIDES);
+        access.requireAnyFunctionality(FunctionalityCodes.MANAGE_SIDES, FunctionalityCodes.MANAGE_STANDARD_ORBAT);
         Side side = sides.create(request.name(), request.description(), request.colour(), request.icon(),
                 request.themeId());
         return ResponseEntity.status(HttpStatus.CREATED).body(SideResponse.of(side));
@@ -62,7 +62,7 @@ public class SideController {
 
     @PutMapping("/{id}")
     public SideResponse update(@PathVariable Long id, @Valid @RequestBody SideRequest request) {
-        access.requireFunctionality(FunctionalityCodes.MANAGE_SIDES);
+        access.requireAnyFunctionality(FunctionalityCodes.MANAGE_SIDES, FunctionalityCodes.MANAGE_STANDARD_ORBAT);
         return SideResponse.of(sides.update(id, request.name(), request.description(), request.colour(),
                 request.icon(), request.themeId()));
     }
