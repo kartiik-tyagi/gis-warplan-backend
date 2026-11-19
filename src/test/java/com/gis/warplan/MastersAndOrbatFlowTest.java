@@ -209,6 +209,23 @@ class MastersAndOrbatFlowTest {
         assertThat(allScenarios.stream().filter(s -> Boolean.TRUE.equals(s.get("active")))).hasSize(1);
         assertThat(((Map) login("cmd" + suffix, "secret1").getBody().get("me")).get("canWork")).isEqualTo(false);
 
+        // rich HTML narrative persists; deactivate clears every active scenario and game
+        String boldIdea = "<p>Advance on <strong>Hill 42</strong></p>";
+        ResponseEntity<Object> rich = call(admin, HttpMethod.PUT, "/api/v1/scenarios/" + scenarioId,
+                Map.of("name", "Scn " + suffix, "generalIdea", boldIdea, "openingNarrative",
+                        "<p>Opening with <em>emphasis</em></p>", "specialIdea", "<ul><li>One</li></ul>"));
+        assertThat(rich.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(((Map) rich.getBody()).get("generalIdea")).isEqualTo(boldIdea);
+        assertThat(call(admin, HttpMethod.POST, "/api/v1/scenarios/deactivate", null).getStatusCode())
+                .isEqualTo(HttpStatus.NO_CONTENT);
+        List<Map> cleared = (List<Map>) call(admin, HttpMethod.GET, "/api/v1/scenarios", null).getBody();
+        assertThat(cleared.stream().filter(s -> Boolean.TRUE.equals(s.get("active")))).isEmpty();
+        List<Map> clearedGames = (List<Map>) call(admin, HttpMethod.GET, "/api/v1/scenarios/" + scenarioId + "/games",
+                null).getBody();
+        assertThat(clearedGames.stream().filter(g -> Boolean.TRUE.equals(g.get("active")))).isEmpty();
+        assertThat(((Map) login("cmd" + suffix, "secret1").getBody().get("me")).get("workBlockedReason"))
+                .isEqualTo("NO_ACTIVE_SCENARIO");
+
         // alliance of Alpha and Bravo (Bravo gets a standard ORBAT first)
         call(admin, HttpMethod.POST, "/api/v1/sides/" + bravoId + "/standard-orbat", null);
         ResponseEntity<Object> alliance = call(admin, HttpMethod.POST,

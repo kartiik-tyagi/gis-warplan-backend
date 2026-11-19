@@ -44,10 +44,11 @@ public class ScenarioService {
     private final AllianceMemberRepository allianceMembers;
     private final AccessService access;
     private final AuditService audit;
+    private final ScenarioAttachmentService attachments;
 
     public ScenarioService(ScenarioRepository scenarios, GameRepository games, PlayingOrbatRepository playingOrbats,
             AppUserRepository users, SideRepository sides, AllianceMemberRepository allianceMembers,
-            AccessService access, AuditService audit) {
+            AccessService access, AuditService audit, ScenarioAttachmentService attachments) {
         this.scenarios = scenarios;
         this.games = games;
         this.playingOrbats = playingOrbats;
@@ -56,6 +57,7 @@ public class ScenarioService {
         this.allianceMembers = allianceMembers;
         this.access = access;
         this.audit = audit;
+        this.attachments = attachments;
     }
 
     // ---- scenarios
@@ -73,11 +75,10 @@ public class ScenarioService {
     }
 
     @Transactional
-    public Scenario createScenario(String name, String generalIdea, String openingNarrative, String specialIdea,
-            String attachedFile) {
+    public Scenario createScenario(String name, String generalIdea, String openingNarrative, String specialIdea) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
         Scenario scenario = new Scenario();
-        applyScenarioFields(scenario, name, generalIdea, openingNarrative, specialIdea, attachedFile);
+        applyScenarioFields(scenario, name, generalIdea, openingNarrative, specialIdea);
         access.currentPrincipal().ifPresent(principal -> scenario.setCreatedBy(principal.userId()));
         Scenario saved = scenarios.save(scenario);
         log.info("scenario.created id={} name={}", saved.getId(), saved.getName());
@@ -87,10 +88,10 @@ public class ScenarioService {
 
     @Transactional
     public Scenario updateScenario(Long id, String name, String generalIdea, String openingNarrative,
-            String specialIdea, String attachedFile) {
+            String specialIdea) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
         Scenario scenario = findScenario(id);
-        applyScenarioFields(scenario, name, generalIdea, openingNarrative, specialIdea, attachedFile);
+        applyScenarioFields(scenario, name, generalIdea, openingNarrative, specialIdea);
         Scenario saved = scenarios.save(scenario);
         log.info("scenario.updated id={}", saved.getId());
         audit.record("UPDATE", "Scenario", saved.getId(), "Scenario " + saved.getName() + " updated", Map.of());
@@ -109,6 +110,7 @@ public class ScenarioService {
         for (Game game : games.findByScenarioId(id)) {
             purgeGame(game);
         }
+        attachments.purge(id);
         scenarios.delete(scenario);
         log.info("scenario.deleted id={}", id);
         audit.record("DELETE", "Scenario", id, "Scenario " + scenario.getName() + " deleted", Map.of());
@@ -123,6 +125,30 @@ public class ScenarioService {
         log.info("scenario.activated id={}", id);
         audit.record("ACTIVATE", "Scenario", id, "Scenario " + scenario.getName() + " activated", Map.of());
         return scenario;
+    }
+
+    /**
+     * Clears the open exercise: every scenario and every game becomes inactive.
+     * Requires MANAGE_SCENARIO (same capability that chooses the active scenario).
+     */
+    @Transactional
+    public void deactivateAll() {
+        access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
+        int scenariosCleared = 0;
+        int gamesCleared = 0;
+        for (Scenario scenario : scenarios.findByActiveTrue()) {
+            scenario.setActive(false);
+            scenarios.save(scenario);
+            scenariosCleared++;
+        }
+        for (Game game : games.findByActiveTrue()) {
+            game.setActive(false);
+            games.save(game);
+            gamesCleared++;
+        }
+        log.info("exercise.deactivated scenarios={} games={}", scenariosCleared, gamesCleared);
+        audit.record("DEACTIVATE", "Scenario", null, "No active scenario or game",
+                Map.of("scenariosCleared", scenariosCleared, "gamesCleared", gamesCleared));
     }
 
     // ---- games
@@ -251,12 +277,11 @@ public class ScenarioService {
     }
 
     private static void applyScenarioFields(Scenario scenario, String name, String generalIdea,
-            String openingNarrative, String specialIdea, String attachedFile) {
+            String openingNarrative, String specialIdea) {
         scenario.setName(name.trim());
         scenario.setGeneralIdea(blankToNull(generalIdea));
         scenario.setOpeningNarrative(blankToNull(openingNarrative));
         scenario.setSpecialIdea(blankToNull(specialIdea));
-        scenario.setAttachedFile(blankToNull(attachedFile));
     }
 
     private static void applyGameFields(Game game, String name, LocalDateTime dateTime, LocalTime sunrise,

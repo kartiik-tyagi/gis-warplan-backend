@@ -19,13 +19,16 @@ public class Scenario {
     @Column(nullable = false, length = 160)
     private String name;
 
-    @Column(length = 4000)
+    /** Sanitized HTML rich text (general idea). */
+    @Column(columnDefinition = "text")
     private String generalIdea;
 
-    @Column(length = 8000)
+    /** Sanitized HTML rich text (opening narrative). */
+    @Column(columnDefinition = "text")
     private String openingNarrative;
 
-    @Column(length = 4000)
+    /** Sanitized HTML rich text (special idea). */
+    @Column(columnDefinition = "text")
     private String specialIdea;
 
     @Column(nullable = false, columnDefinition = "boolean default false")

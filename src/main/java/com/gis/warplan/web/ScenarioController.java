@@ -1,11 +1,13 @@
 package com.gis.warplan.web;
 
+import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -15,10 +17,17 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
+import com.gis.warplan.domain.FunctionalityCodes;
 import com.gis.warplan.domain.Game;
 import com.gis.warplan.domain.Scenario;
+import com.gis.warplan.service.AccessService;
+import com.gis.warplan.service.AuditService;
+import com.gis.warplan.service.ScenarioAttachmentService;
+import com.gis.warplan.service.ScenarioAttachmentService.AttachmentContent;
 import com.gis.warplan.service.ScenarioService;
 
 import jakarta.validation.Valid;
@@ -31,14 +40,28 @@ import jakarta.validation.constraints.Size;
 public class ScenarioController {
 
     private final ScenarioService scenarios;
+    private final ScenarioAttachmentService attachments;
+    private final AccessService access;
+    private final AuditService audit;
 
-    public ScenarioController(ScenarioService scenarios) {
+    public ScenarioController(ScenarioService scenarios, ScenarioAttachmentService attachments, AccessService access,
+            AuditService audit) {
         this.scenarios = scenarios;
+        this.attachments = attachments;
+        this.access = access;
+        this.audit = audit;
     }
 
     @GetMapping("/scenarios")
     public List<ScenarioResponse> list() {
         return scenarios.listScenarios().stream().map(ScenarioResponse::of).toList();
+    }
+
+    /** Clears every active scenario and game (no open exercise). Literal path before {id}. */
+    @PostMapping("/scenarios/deactivate")
+    public ResponseEntity<Void> deactivate() {
+        scenarios.deactivateAll();
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/scenarios/{id}")
@@ -49,14 +72,14 @@ public class ScenarioController {
     @PostMapping("/scenarios")
     public ResponseEntity<ScenarioResponse> create(@Valid @RequestBody ScenarioRequest request) {
         Scenario scenario = scenarios.createScenario(request.name(), request.generalIdea(), request.openingNarrative(),
-                request.specialIdea(), request.attachedFile());
+                request.specialIdea());
         return ResponseEntity.status(HttpStatus.CREATED).body(ScenarioResponse.of(scenario));
     }
 
     @PutMapping("/scenarios/{id}")
     public ScenarioResponse update(@PathVariable Long id, @Valid @RequestBody ScenarioRequest request) {
         return ScenarioResponse.of(scenarios.updateScenario(id, request.name(), request.generalIdea(),
-                request.openingNarrative(), request.specialIdea(), request.attachedFile()));
+                request.openingNarrative(), request.specialIdea()));
     }
 
     @DeleteMapping("/scenarios/{id}")
@@ -68,6 +91,39 @@ public class ScenarioController {
     @PostMapping("/scenarios/{id}/activate")
     public ScenarioResponse activate(@PathVariable Long id) {
         return ScenarioResponse.of(scenarios.activateScenario(id));
+    }
+
+    @PostMapping(path = "/scenarios/{id}/attachment", consumes = "multipart/form-data")
+    public ResponseEntity<Map<String, Object>> uploadAttachment(@PathVariable Long id,
+            @RequestParam("file") MultipartFile file) throws IOException {
+        access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
+        scenarios.getScenario(id);
+        String stored = attachments.store(id, file);
+        audit.record("UPLOAD", "Scenario", id, "Attachment uploaded " + stored, Map.of("file", stored));
+        return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("attachedFile", stored));
+    }
+
+    @GetMapping("/scenarios/{id}/attachment")
+    public ResponseEntity<byte[]> downloadAttachment(@PathVariable Long id) {
+        access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
+        AttachmentContent content = attachments.read(id);
+        String disposition = (content.inline() ? "inline" : "attachment") + "; filename=\"" + content.fileName()
+                + "\"";
+        return ResponseEntity.ok()
+                .contentType(content.mediaType())
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition)
+                .header("X-Content-Type-Options", "nosniff")
+                .header(HttpHeaders.CACHE_CONTROL, "private, no-cache")
+                .body(content.bytes());
+    }
+
+    @DeleteMapping("/scenarios/{id}/attachment")
+    public ResponseEntity<Void> deleteAttachment(@PathVariable Long id) {
+        access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
+        scenarios.getScenario(id);
+        attachments.clear(id);
+        audit.record("DELETE", "ScenarioAttachment", id, "Scenario attachment removed", Map.of());
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/scenarios/{scenarioId}/games")
@@ -107,10 +163,9 @@ public class ScenarioController {
 
     public record ScenarioRequest(
             @NotBlank @Size(max = 160) String name,
-            @Size(max = 4000) String generalIdea,
-            @Size(max = 8000) String openingNarrative,
-            @Size(max = 4000) String specialIdea,
-            @Size(max = 500) String attachedFile) {
+            @Size(max = 100000) String generalIdea,
+            @Size(max = 100000) String openingNarrative,
+            @Size(max = 100000) String specialIdea) {
     }
 
     public record ScenarioResponse(Long id, String name, String generalIdea, String openingNarrative,
@@ -131,7 +186,7 @@ public class ScenarioController {
             LocalTime sunrise,
             LocalTime sunset,
             @Size(max = 4000) String moonphases,
-            @Size(max = 4000) String description,
+            @Size(max = 100000) String description,
             Map<String, Object> metadata) {
     }
 

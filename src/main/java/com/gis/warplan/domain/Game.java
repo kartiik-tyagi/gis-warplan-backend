@@ -38,7 +38,8 @@ public class Game {
     @Column(length = 4000)
     private String moonphases;
 
-    @Column(length = 4000)
+    /** Sanitized HTML rich text description. */
+    @Column(columnDefinition = "text")
     private String description;
 
     @Column(nullable = false, columnDefinition = "boolean default false")

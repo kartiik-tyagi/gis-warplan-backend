@@ -13,6 +13,7 @@ public class WarplanProperties {
     private final Db db = new Db();
     private final Jwt jwt = new Jwt();
     private final Icons icons = new Icons();
+    private final Attachments attachments = new Attachments();
 
     public String getApiBasePath() {
         return apiBasePath;
@@ -40,6 +41,10 @@ public class WarplanProperties {
 
     public Icons getIcons() {
         return icons;
+    }
+
+    public Attachments getAttachments() {
+        return attachments;
     }
 
     public static class Db {
@@ -84,6 +89,18 @@ public class WarplanProperties {
 
         public void setRoot(String root) {
             this.root = root == null || root.isBlank() ? "images/icon" : root;
+        }
+    }
+
+    public static class Attachments {
+        private String root = "images/scenario-attachments";
+
+        public String getRoot() {
+            return root;
+        }
+
+        public void setRoot(String root) {
+            this.root = root == null || root.isBlank() ? "images/scenario-attachments" : root;
         }
     }
 }
