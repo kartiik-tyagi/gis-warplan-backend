@@ -37,10 +37,11 @@ public class AuthService {
     private final AccessService access;
     private final AuditService audit;
     private final ActivationService activation;
+    private final UserService userService;
 
     public AuthService(AppUserRepository users, UserSessionRepository sessions, ThemeAllotmentService allotment,
             PasswordEncoder passwordEncoder, JwtService jwtService, AccessService access, AuditService audit,
-            ActivationService activation) {
+            ActivationService activation, UserService userService) {
         this.users = users;
         this.sessions = sessions;
         this.allotment = allotment;
@@ -49,6 +50,7 @@ public class AuthService {
         this.access = access;
         this.audit = audit;
         this.activation = activation;
+        this.userService = userService;
     }
 
     @Transactional(readOnly = true)
@@ -72,6 +74,7 @@ public class AuthService {
             log.warn("login.rejected namePresent={}", name != null && !name.isBlank());
             throw new UnauthorizedException(INVALID);
         }
+        userService.ensureMarkedSide(user);
         List<String> roleCodes = access.resolveRoleCodes(user);
         List<String> functionalityCodes = access.resolveFunctionalityCodes(user);
         UserPrincipal principal = new UserPrincipal(user.getId(), user.getName(), roleCodes, functionalityCodes,

@@ -65,20 +65,23 @@ public class UserService {
         this.activation = activation;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<AppUser> list() {
         access.requireFunctionality(FunctionalityCodes.MANAGE_USERS);
         Visibility visibility = visibility();
-        return users.findAll(Sort.by("id")).stream().filter(visibility::sees).toList();
+        List<AppUser> visible = users.findAll(Sort.by("id")).stream().filter(visibility::sees).toList();
+        visible.forEach(this::ensureMarkedSide);
+        return visible;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public AppUser get(Long id) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_USERS);
         AppUser user = find(id);
         if (!visibility().sees(user)) {
             throw new ForbiddenException("You can only manage users of the side you administer.");
         }
+        ensureMarkedSide(user);
         return user;
     }
 
@@ -183,7 +186,16 @@ public class UserService {
             user.setActive(active);
             changed.put("active", active);
         }
-        if (administeredSideId != null) {
+        if (user.getStandardNodeId() != null) {
+            Long bound = markedSideId(user);
+            if (administeredSideId != null && bound != null && !bound.equals(administeredSideId)) {
+                throw new ConflictException("This account belongs to the side of its ORBAT node. Unmark the user before changing the side.");
+            }
+            if (bound != null && !bound.equals(user.getAdministeredSideId())) {
+                user.setAdministeredSideId(bound);
+                changed.put("administeredSideId", bound);
+            }
+        } else if (administeredSideId != null) {
             if (!access.isAdministrator()) {
                 throw new ForbiddenException("Only an administrator can assign the administered side.");
             }
@@ -259,10 +271,12 @@ public class UserService {
         user.setActive(false);
         user.setStandardOrbatId(standardOrbatId);
         user.setStandardNodeId(standardNodeId);
+        user.setAdministeredSideId(orbat.getSideId());
         user.setThemeId(themeId);
         AppUser saved = users.save(user);
         audit.record("MARK_USER", "AppUser", saved.getId(), "Node " + standardNodeId + " marked as user " + trimmed,
-                Map.of("standardOrbatId", standardOrbatId, "standardNodeId", standardNodeId, "roleIds", checked));
+                Map.of("standardOrbatId", standardOrbatId, "standardNodeId", standardNodeId,
+                        "administeredSideId", String.valueOf(orbat.getSideId()), "roleIds", checked));
         activation.reconcile();
         return saved;
     }
@@ -287,7 +301,7 @@ public class UserService {
     @Transactional
     public AppUser updateMarked(Long standardOrbatId, String standardNodeId, String name, String password,
             List<Long> roleIds, Long themeId, Boolean clearTheme) {
-        markedOrbat(standardOrbatId);
+        StandardOrbat orbat = markedOrbat(standardOrbatId);
         AppUser user = users.findByStandardOrbatIdAndStandardNodeId(standardOrbatId, standardNodeId)
                 .orElseThrow(() -> new NotFoundException("This node is not marked as a user."));
         if (Boolean.TRUE.equals(clearTheme) && themeId != null) {
@@ -303,6 +317,9 @@ public class UserService {
         }
         boolean revoke = false;
         user.setName(trimmed);
+        if (orbat.getSideId() != null) {
+            user.setAdministeredSideId(orbat.getSideId());
+        }
         if (password != null && !password.isBlank()) {
             user.setPasswordHash(passwordEncoder.encode(password));
             revoke = true;
@@ -338,6 +355,23 @@ public class UserService {
 
     private AppUser find(Long id) {
         return users.findById(id).orElseThrow(() -> new NotFoundException("User not found."));
+    }
+
+    /** A marked account administers the side of its standard ORBAT, until the node is unmarked. */
+    public void ensureMarkedSide(AppUser user) {
+        Long sideId = markedSideId(user);
+        if (sideId == null || sideId.equals(user.getAdministeredSideId())) {
+            return;
+        }
+        user.setAdministeredSideId(sideId);
+        users.save(user);
+    }
+
+    private Long markedSideId(AppUser user) {
+        if (user.getStandardNodeId() == null || user.getStandardOrbatId() == null) {
+            return null;
+        }
+        return standardOrbats.findById(user.getStandardOrbatId()).map(StandardOrbat::getSideId).orElse(null);
     }
 
     /**

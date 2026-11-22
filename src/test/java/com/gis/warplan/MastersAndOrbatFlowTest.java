@@ -119,9 +119,14 @@ class MastersAndOrbatFlowTest {
         assertThat(markedUser).doesNotContainKey("passwordHash");
         assertThat(markedUser.get("standardNodeId")).isEqualTo(childId);
         assertThat(markedUser.get("active")).isEqualTo(false);
+        assertThat(((Number) markedUser.get("administeredSideId")).longValue()).isEqualTo(alphaId);
         AppUser stored = users.findByName("cmd" + suffix).orElseThrow();
         assertThat(stored.getStandardOrbatId()).isEqualTo(orbatId);
+        assertThat(stored.getAdministeredSideId()).isEqualTo(alphaId);
         assertThat(passwordEncoder.matches("secret1", stored.getPasswordHash())).isTrue();
+        assertThat(call(admin, HttpMethod.PATCH, "/api/v1/users/" + stored.getId(),
+                Map.of("administeredSideId", bravoId)).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(users.findByName("cmd" + suffix).orElseThrow().getAdministeredSideId()).isEqualTo(alphaId);
         assertThat(call(admin, HttpMethod.POST, "/api/v1/users/mark-from-node",
                 Map.of("standardOrbatId", orbatId, "standardNodeId", childId, "name", "other" + suffix,
                         "password", "secret1", "roleIds", List.of(commanderRole))).getStatusCode())
