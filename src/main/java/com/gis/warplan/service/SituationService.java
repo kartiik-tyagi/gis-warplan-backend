@@ -23,7 +23,7 @@ import com.gis.warplan.security.UserPrincipal;
 
 /**
  * The live map picture for the active game. APEX sees every finalized playing ORBAT. Anyone else sees the
- * one finalized playing ORBAT assigned to them, which is their whole team or their whole alliance.
+ * one finalized playing ORBAT assigned to them, which is their whole side or their whole alliance.
  */
 @Service
 public class SituationService {
