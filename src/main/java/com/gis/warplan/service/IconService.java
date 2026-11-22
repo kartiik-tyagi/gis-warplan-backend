@@ -175,33 +175,9 @@ public class IconService {
         return new StoredIcon(path, content.length);
     }
 
-    /** Replaces the bytes of an existing SVG. The file name stays the same. */
+    /** Refuses to change an existing file. A revised drawing is stored under a new name. */
     public StoredIcon replaceDrawn(String relativePath, String svg) {
-        if (relativePath == null || relativePath.isBlank()) {
-            throw new BadRequestException("Icon path is required.");
-        }
-        String relative = relativePath.trim();
-        if (!relative.toLowerCase(Locale.ROOT).endsWith(".svg")) {
-            throw new BadRequestException("Icon type is not supported.");
-        }
-        byte[] content = drawnBytes(svg);
-        Path root = root();
-        Path lexical = resolveLexically(root, relative);
-        if (Files.isDirectory(lexical)) {
-            throw new BadRequestException("Icon path is not a file.");
-        }
-        Path file = resolveExisting(root, relative);
-        if (!Files.isRegularFile(file)) {
-            throw new BadRequestException("Icon path is not a file.");
-        }
-        try {
-            Files.write(file, content, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
-        } catch (IOException exception) {
-            throw new IllegalStateException("Icon could not be stored", exception);
-        }
-        String path = relative(root, lexical);
-        log.info("icon.revised path={} bytes={}", path, content.length);
-        return new StoredIcon(path, content.length);
+        throw new ConflictException("The original icon cannot be changed. Save the drawing as a new icon.");
     }
 
     private String writeNew(String directory, String fileName, byte[] content) {

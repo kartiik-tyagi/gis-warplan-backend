@@ -191,11 +191,11 @@ class DomainFoundationTest {
         String revised = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\">"
                 + "<circle cx=\"12\" cy=\"12\" r=\"5\" fill=\"var(--wp-error)\" data-wp-fill=\"error\"/></svg>";
         ResponseEntity<Map> updated = revise(admin, path, "HQ mark", revised);
-        assertThat(updated.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(updated.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         ResponseEntity<String> after = rest.exchange("/api/v1/icons/content?path=" + path, HttpMethod.GET,
                 bearer(admin, null), String.class);
-        assertThat(after.getBody()).contains("var(--wp-error)");
-        assertThat(after.getBody()).doesNotContain("var(--wp-primary)");
+        assertThat(after.getBody()).contains("var(--wp-primary)");
+        assertThat(after.getBody()).doesNotContain("var(--wp-error)");
     }
 
     private static String validSvg() {

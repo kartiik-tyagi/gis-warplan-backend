@@ -50,7 +50,7 @@ public final class SvgIconSanitizer {
 
     private static final Set<String> COMMON = Set.of(
             "id", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray",
-            "opacity", "transform", "data-wp-fill", "data-wp-stroke");
+            "opacity", "transform", "fill-rule", "data-wp-fill", "data-wp-stroke");
 
     private static final Pattern NUMBER = Pattern.compile("-?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?");
     private static final Pattern HEX = Pattern.compile("#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})");
@@ -232,6 +232,7 @@ public final class SvgIconSanitizer {
             case "stroke-linecap" -> token(value, Pattern.compile("butt|round|square"));
             case "stroke-linejoin" -> token(value, Pattern.compile("miter|round|bevel"));
             case "stroke-dasharray" -> dash(value);
+            case "fill-rule" -> token(value, Pattern.compile("nonzero|evenodd"));
             case "transform" -> {
                 if (value.length() > 400 || !TRANSFORM.matcher(value).matches()) {
                     throw bad();
