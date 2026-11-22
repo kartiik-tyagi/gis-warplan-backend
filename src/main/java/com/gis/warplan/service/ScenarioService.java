@@ -15,6 +15,7 @@ import com.gis.warplan.domain.AllianceMember;
 import com.gis.warplan.domain.AppUser;
 import com.gis.warplan.domain.FunctionalityCodes;
 import com.gis.warplan.domain.Game;
+import com.gis.warplan.domain.MoonPhase;
 import com.gis.warplan.domain.PlayingOrbat;
 import com.gis.warplan.domain.Scenario;
 import com.gis.warplan.domain.Side;
@@ -24,6 +25,7 @@ import com.gis.warplan.repository.GameRepository;
 import com.gis.warplan.repository.PlayingOrbatRepository;
 import com.gis.warplan.repository.ScenarioRepository;
 import com.gis.warplan.repository.SideRepository;
+import com.gis.warplan.web.BadRequestException;
 import com.gis.warplan.web.ConflictException;
 import com.gis.warplan.web.NotFoundException;
 
@@ -45,10 +47,12 @@ public class ScenarioService {
     private final AccessService access;
     private final AuditService audit;
     private final ScenarioAttachmentService attachments;
+    private final ActivationService activation;
 
     public ScenarioService(ScenarioRepository scenarios, GameRepository games, PlayingOrbatRepository playingOrbats,
             AppUserRepository users, SideRepository sides, AllianceMemberRepository allianceMembers,
-            AccessService access, AuditService audit, ScenarioAttachmentService attachments) {
+            AccessService access, AuditService audit, ScenarioAttachmentService attachments,
+            ActivationService activation) {
         this.scenarios = scenarios;
         this.games = games;
         this.playingOrbats = playingOrbats;
@@ -58,6 +62,7 @@ public class ScenarioService {
         this.access = access;
         this.audit = audit;
         this.attachments = attachments;
+        this.activation = activation;
     }
 
     // ---- scenarios
@@ -112,6 +117,7 @@ public class ScenarioService {
         }
         attachments.purge(id);
         scenarios.delete(scenario);
+        activation.reconcile();
         log.info("scenario.deleted id={}", id);
         audit.record("DELETE", "Scenario", id, "Scenario " + scenario.getName() + " deleted", Map.of());
     }
@@ -122,6 +128,7 @@ public class ScenarioService {
         access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
         Scenario scenario = findScenario(id);
         activate(scenario);
+        activation.reconcile();
         log.info("scenario.activated id={}", id);
         audit.record("ACTIVATE", "Scenario", id, "Scenario " + scenario.getName() + " activated", Map.of());
         return scenario;
@@ -142,6 +149,7 @@ public class ScenarioService {
             scenariosCleared++;
         }
         gamesCleared = clearActiveGames();
+        activation.reconcile();
         log.info("exercise.deactivated scenarios={} games={}", scenariosCleared, gamesCleared);
         audit.record("DEACTIVATE", "Scenario", null, "No active scenario or game",
                 Map.of("scenariosCleared", scenariosCleared, "gamesCleared", gamesCleared));
@@ -155,11 +163,18 @@ public class ScenarioService {
     public void deactivateGames() {
         access.requireFunctionality(FunctionalityCodes.MANAGE_GAME);
         int gamesCleared = clearActiveGames();
+        activation.reconcile();
         log.info("games.deactivated count={}", gamesCleared);
         audit.record("DEACTIVATE", "Game", null, "No active game", Map.of("gamesCleared", gamesCleared));
     }
 
     // ---- games
+
+    @Transactional(readOnly = true)
+    public List<MoonPhase> moonPhases() {
+        access.requireFunctionality(FunctionalityCodes.MANAGE_GAME);
+        return List.of(MoonPhase.values());
+    }
 
     @Transactional(readOnly = true)
     public List<Game> listGames(Long scenarioId) {
@@ -210,6 +225,7 @@ public class ScenarioService {
             throw new ConflictException("The active game cannot be deleted.");
         }
         purgeGame(game);
+        activation.reconcile();
         log.info("game.deleted id={}", id);
         audit.record("DELETE", "Game", id, "Game " + game.getName() + " deleted", Map.of());
     }
@@ -219,6 +235,15 @@ public class ScenarioService {
     public Game activateGame(Long id) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_GAME);
         Game game = findGame(id);
+        List<PlayingOrbat> owned = playingOrbats.findByGameId(game.getId());
+        if (owned.isEmpty()) {
+            log.warn("game.activate_rejected id={} reason=no_playing_orbat", id);
+            throw new BadRequestException("This game has no playing ORBAT.");
+        }
+        if (owned.stream().anyMatch(orbat -> !ActivationService.isFinalized(orbat))) {
+            log.warn("game.activate_rejected id={} reason=draft_playing_orbat", id);
+            throw new BadRequestException("Finalize every playing ORBAT of this game before activating it.");
+        }
         Scenario scenario = findScenario(game.getScenarioId());
         activate(scenario);
         for (Game other : games.findByActiveTrue()) {
@@ -229,6 +254,7 @@ public class ScenarioService {
         }
         game.setActive(true);
         Game saved = games.save(game);
+        activation.reconcile();
         log.info("game.activated id={} scenarioId={}", id, scenario.getId());
         audit.record("ACTIVATE", "Game", id, "Game " + game.getName() + " activated",
                 Map.of("scenarioId", scenario.getId()));
@@ -304,9 +330,16 @@ public class ScenarioService {
         game.setDateTime(dateTime);
         game.setSunrise(sunrise);
         game.setSunset(sunset);
-        game.setMoonphases(blankToNull(moonphases));
+        game.setMoonphases(moonPhase(moonphases));
         game.setDescription(blankToNull(description));
         game.setMetadata(metadata);
+    }
+
+    private static MoonPhase moonPhase(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        return MoonPhase.parse(raw).orElseThrow(() -> new BadRequestException("Choose a moon phase from the list."));
     }
 
     private static String blankToNull(String value) {

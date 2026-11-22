@@ -23,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.gis.warplan.domain.FunctionalityCodes;
 import com.gis.warplan.domain.Game;
+import com.gis.warplan.domain.MoonPhase;
 import com.gis.warplan.domain.Scenario;
 import com.gis.warplan.service.AccessService;
 import com.gis.warplan.service.AuditService;
@@ -139,6 +140,12 @@ public class ScenarioController {
         return ResponseEntity.status(HttpStatus.CREATED).body(GameResponse.of(game));
     }
 
+    /** Literal path before /games/{id}. */
+    @GetMapping("/games/moon-phases")
+    public List<MoonPhaseOption> moonPhases() {
+        return scenarios.moonPhases().stream().map(MoonPhaseOption::of).toList();
+    }
+
     @GetMapping("/games/{id}")
     public GameResponse getGame(@PathVariable Long id) {
         return GameResponse.of(scenarios.getGame(id));
@@ -192,7 +199,7 @@ public class ScenarioController {
             LocalDateTime dateTime,
             LocalTime sunrise,
             LocalTime sunset,
-            @Size(max = 4000) String moonphases,
+            @Size(max = 40) String moonphases,
             @Size(max = 100000) String description,
             Map<String, Object> metadata) {
     }
@@ -202,9 +209,16 @@ public class ScenarioController {
             Instant createdAt, Instant updatedAt) {
 
         static GameResponse of(Game game) {
+            MoonPhase phase = game.getMoonphases();
             return new GameResponse(game.getId(), game.getScenarioId(), game.getName(), game.getDateTime(),
-                    game.getSunrise(), game.getSunset(), game.getMoonphases(), game.getDescription(), game.isActive(),
-                    game.getMetadata(), game.getCreatedAt(), game.getUpdatedAt());
+                    game.getSunrise(), game.getSunset(), phase == null ? null : phase.name(), game.getDescription(),
+                    game.isActive(), game.getMetadata(), game.getCreatedAt(), game.getUpdatedAt());
+        }
+    }
+
+    public record MoonPhaseOption(String code, String label) {
+        static MoonPhaseOption of(MoonPhase phase) {
+            return new MoonPhaseOption(phase.name(), phase.label());
         }
     }
 }

@@ -24,6 +24,8 @@ public class OrbatSupport {
 
     public static final String STATUS_DRAFT = "draft";
     public static final String STATUS_FINALIZED = "finalized";
+    /** Set on a playing node to keep that user out of this game after it is activated. */
+    public static final String PARTICIPATION_HELD = "participationHeld";
 
     private static final int MAX_NODES = 50_000;
     private static final int MAX_ID = 120;

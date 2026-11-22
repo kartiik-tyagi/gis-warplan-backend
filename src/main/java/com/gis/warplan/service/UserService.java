@@ -46,10 +46,12 @@ public class UserService {
     private final ThemeAllotmentService allotment;
     private final AccessService access;
     private final AuditService audit;
+    private final ActivationService activation;
 
     public UserService(AppUserRepository users, RoleRepository roles, FunctionalityRepository functionalities,
             StandardOrbatRepository standardOrbats, SideRepository sides, UserSessionRepository sessions,
-            PasswordEncoder passwordEncoder, ThemeAllotmentService allotment, AccessService access, AuditService audit) {
+            PasswordEncoder passwordEncoder, ThemeAllotmentService allotment, AccessService access, AuditService audit,
+            ActivationService activation) {
         this.users = users;
         this.roles = roles;
         this.functionalities = functionalities;
@@ -60,6 +62,7 @@ public class UserService {
         this.allotment = allotment;
         this.access = access;
         this.audit = audit;
+        this.activation = activation;
     }
 
     @Transactional(readOnly = true)
@@ -165,6 +168,9 @@ public class UserService {
             revoke = true;
         }
         if (active != null && active != user.isActive()) {
+            if (user.getStandardNodeId() != null) {
+                throw new ConflictException("This account follows the active game. Change it from the playing ORBAT.");
+            }
             if (!active) {
                 if (caller.userId().equals(id)) {
                     throw new ConflictException("You cannot deactivate your own account.");
@@ -250,14 +256,84 @@ public class UserService {
         user.setName(trimmed);
         user.setPasswordHash(passwordEncoder.encode(password));
         user.setRoleIds(checked);
-        user.setActive(true);
+        user.setActive(false);
         user.setStandardOrbatId(standardOrbatId);
         user.setStandardNodeId(standardNodeId);
         user.setThemeId(themeId);
         AppUser saved = users.save(user);
         audit.record("MARK_USER", "AppUser", saved.getId(), "Node " + standardNodeId + " marked as user " + trimmed,
                 Map.of("standardOrbatId", standardOrbatId, "standardNodeId", standardNodeId, "roleIds", checked));
+        activation.reconcile();
         return saved;
+    }
+
+    @Transactional(readOnly = true)
+    public List<AppUser> listMarked(Long standardOrbatId) {
+        markedOrbat(standardOrbatId);
+        return users.findByStandardOrbatId(standardOrbatId);
+    }
+
+    @Transactional(readOnly = true)
+    public AppUser marked(Long standardOrbatId, String standardNodeId) {
+        markedOrbat(standardOrbatId);
+        return users.findByStandardOrbatIdAndStandardNodeId(standardOrbatId, standardNodeId)
+                .orElseThrow(() -> new NotFoundException("This node is not marked as a user."));
+    }
+
+    /**
+     * Changes the account bound to a standard node. The node binding and the exercise active flag stay put.
+     * An empty password keeps the current one.
+     */
+    @Transactional
+    public AppUser updateMarked(Long standardOrbatId, String standardNodeId, String name, String password,
+            List<Long> roleIds, Long themeId, Boolean clearTheme) {
+        markedOrbat(standardOrbatId);
+        AppUser user = users.findByStandardOrbatIdAndStandardNodeId(standardOrbatId, standardNodeId)
+                .orElseThrow(() -> new NotFoundException("This node is not marked as a user."));
+        if (Boolean.TRUE.equals(clearTheme) && themeId != null) {
+            throw new BadRequestException("Clear the theme or allot a new one.");
+        }
+        String trimmed = name.trim();
+        if (trimmed.isEmpty()) {
+            throw new BadRequestException("Name cannot be blank.");
+        }
+        if (ThemeAllotmentService.APEX_NAME.equals(trimmed) || users.findByName(trimmed)
+                .filter(other -> !other.getId().equals(user.getId())).isPresent()) {
+            throw new ConflictException("A user with this name already exists.");
+        }
+        boolean revoke = false;
+        user.setName(trimmed);
+        if (password != null && !password.isBlank()) {
+            user.setPasswordHash(passwordEncoder.encode(password));
+            revoke = true;
+        }
+        List<Long> checked = assignableRoles(roleIds);
+        List<Long> previousRoles = user.getRoleIds() == null ? List.of() : user.getRoleIds();
+        if (!new java.util.HashSet<>(previousRoles).equals(new java.util.HashSet<>(checked))) {
+            revoke = true;
+        }
+        user.setRoleIds(checked);
+        if (Boolean.TRUE.equals(clearTheme)) {
+            allotment.clearOverride(user);
+        } else if (themeId != null) {
+            allotment.requireAllottableToUser(themeId, user.getId());
+            user.setThemeId(themeId);
+        }
+        AppUser saved = users.save(user);
+        if (revoke) {
+            revokeSessions(saved.getId());
+        }
+        audit.record("UPDATE", "AppUser", saved.getId(), "Marked user " + saved.getName() + " updated",
+                Map.of("standardOrbatId", standardOrbatId, "standardNodeId", standardNodeId, "roleIds", checked));
+        return saved;
+    }
+
+    private StandardOrbat markedOrbat(Long standardOrbatId) {
+        access.requireFunctionality(FunctionalityCodes.MARK_AS_USER);
+        StandardOrbat orbat = standardOrbats.findById(standardOrbatId)
+                .orElseThrow(() -> new NotFoundException("Standard ORBAT not found."));
+        access.requireSideScope(orbat.getSideId());
+        return orbat;
     }
 
     private AppUser find(Long id) {

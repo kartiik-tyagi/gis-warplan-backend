@@ -34,9 +34,10 @@ public class Game {
 
     private LocalTime sunset;
 
-    /** Free-form plain text describing the moon phases of the game. */
+    /** One value from {@link MoonPhase}. Older free-text notes that are not a phase are read as empty. */
+    @Convert(converter = MoonPhaseConverter.class)
     @Column(length = 4000)
-    private String moonphases;
+    private MoonPhase moonphases;
 
     /** Sanitized HTML rich text description. */
     @Column(columnDefinition = "text")

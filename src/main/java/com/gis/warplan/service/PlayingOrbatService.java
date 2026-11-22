@@ -51,11 +51,12 @@ public class PlayingOrbatService {
     private final OrbatSupport support;
     private final AccessService access;
     private final AuditService audit;
+    private final ActivationService activation;
 
     public PlayingOrbatService(PlayingOrbatRepository playingOrbats, StandardOrbatRepository standardOrbats,
             GameRepository games, SideRepository sides, AllianceMemberRepository allianceMembers,
             AppUserRepository users, SideService sideService, OrbatSupport support, AccessService access,
-            AuditService audit) {
+            AuditService audit, ActivationService activation) {
         this.playingOrbats = playingOrbats;
         this.standardOrbats = standardOrbats;
         this.games = games;
@@ -66,6 +67,7 @@ public class PlayingOrbatService {
         this.support = support;
         this.access = access;
         this.audit = audit;
+        this.activation = activation;
     }
 
     @Transactional(readOnly = true)
@@ -157,6 +159,7 @@ public class PlayingOrbatService {
             support.validate(saved.getOrbatJson());
             assigned = assignUsers(saved);
         }
+        activation.reconcile();
         String action = OrbatSupport.STATUS_FINALIZED.equals(status) ? "FINALIZE" : wasFinalized ? "REOPEN" : "UPDATE";
         audit.record(action, "PlayingOrbat",
                 saved.getId(), "Playing ORBAT " + saved.getName() + " saved as " + status,
@@ -178,6 +181,7 @@ public class PlayingOrbatService {
             users.save(assigned);
         }
         playingOrbats.delete(orbat);
+        activation.reconcile();
         if (alliance) {
             allianceMembers.deleteAll(allianceMembers.findByAllianceSideId(side.getId()));
             sides.delete(side);

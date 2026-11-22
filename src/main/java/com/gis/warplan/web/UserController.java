@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.gis.warplan.domain.AppUser;
@@ -70,6 +71,21 @@ public class UserController {
         return ResponseEntity.status(HttpStatus.CREATED).body(toResponse(user));
     }
 
+    /** One marked account, or every account on the standard ORBAT when {@code standardNodeId} is omitted. */
+    @GetMapping("/marked")
+    public Object marked(@RequestParam Long standardOrbatId, @RequestParam(required = false) String standardNodeId) {
+        if (standardNodeId == null || standardNodeId.isBlank()) {
+            return users.listMarked(standardOrbatId).stream().map(this::toResponse).toList();
+        }
+        return toResponse(users.marked(standardOrbatId, standardNodeId));
+    }
+
+    @PatchMapping("/marked")
+    public UserResponse updateMarked(@Valid @RequestBody MarkedUpdateRequest request) {
+        return toResponse(users.updateMarked(request.standardOrbatId(), request.standardNodeId(), request.name(),
+                request.password(), request.roleIds(), request.themeId(), request.clearTheme()));
+    }
+
     public record CreateUserRequest(
             @NotBlank @Size(max = 120) String name,
             @NotBlank @Size(min = 3, max = 72) String password,
@@ -99,6 +115,17 @@ public class UserController {
             @NotBlank @Size(min = 3, max = 72) String password,
             @NotEmpty List<Long> roleIds,
             Long themeId) {
+    }
+
+    /** Password is optional. {@code clearTheme} drops an override so the account inherits the side theme. */
+    public record MarkedUpdateRequest(
+            @NotNull Long standardOrbatId,
+            @NotBlank @Size(max = 120) String standardNodeId,
+            @NotBlank @Size(max = 120) String name,
+            @Size(min = 3, max = 72) String password,
+            @NotEmpty List<Long> roleIds,
+            Long themeId,
+            Boolean clearTheme) {
     }
 
     /**
