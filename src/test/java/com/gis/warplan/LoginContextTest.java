@@ -41,8 +41,8 @@ class LoginContextTest {
         ResponseEntity<Map> response = rest.getForEntity("/api/v1/auth/login-context", Map.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map body = response.getBody();
-        assertThat(body.get("applicationName")).isEqualTo("GIS Warplan");
-        assertThat(body.get("exerciseTitle")).isEqualTo("GIS Warplan");
+        assertThat(body.get("applicationName")).isEqualTo("JAYANT");
+        assertThat(body.get("exerciseTitle")).isEqualTo("JAYANT");
 
         List<Map> activeUsers = (List<Map>) body.get("activeUsers");
         assertThat(activeUsers).isNotEmpty();

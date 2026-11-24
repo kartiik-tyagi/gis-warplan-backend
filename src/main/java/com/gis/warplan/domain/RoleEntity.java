@@ -10,6 +10,9 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * Role master. {@code code} is an internal system key (seeds / auth checks) and is not part of the public role API.
+ */
 @Entity
 @Table(name = "role", uniqueConstraints = @UniqueConstraint(columnNames = "code"))
 @Getter
@@ -20,6 +23,7 @@ public class RoleEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** Internal system key — not exposed on role CRUD responses. */
     @Column(nullable = false, length = 60)
     private String code;
 

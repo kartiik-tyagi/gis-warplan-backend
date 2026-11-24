@@ -35,6 +35,8 @@ server:
     include-exception: false
 
 warplan:
+  # Product display name — single source for login context, OpenAPI, and actuator info.
+  application-name: JAYANT
   api-base-path: /api/v1
   cors-origins:
     - http://127.0.0.1:5173
@@ -65,8 +67,8 @@ management:
 
 info:
   app:
-    name: GIS Warplan
-    description: GIS Warplan backend
+    name: JAYANT
+    description: JAYANT backend
 
 springdoc:
   api-docs:

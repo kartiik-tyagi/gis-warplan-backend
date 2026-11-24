@@ -59,40 +59,41 @@ public class RoleService {
     }
 
     @Transactional
-    public RoleEntity create(String code, String name, String description, List<Long> functionalityIds) {
-        String normalized = code.trim().toUpperCase();
-        if (roles.findByCode(normalized).isPresent()) {
-            throw new ConflictException("A role with this code already exists.");
+    public RoleEntity create(String name, String description, List<Long> functionalityIds) {
+        String trimmed = name == null ? "" : name.trim();
+        if (trimmed.isBlank()) {
+            throw new BadRequestException("Role name is required.");
         }
         RoleEntity role = new RoleEntity();
-        role.setCode(normalized);
-        role.setName(name.trim());
+        role.setCode(uniqueSystemKey(trimmed));
+        role.setName(trimmed);
         role.setDescription(description);
         role.setFunctionalityIds(checkedFunctionalities(functionalityIds));
         role.setStandard(false);
         RoleEntity saved = roles.save(role);
-        log.info("role.created id={} code={}", saved.getId(), saved.getCode());
-        audit.record("CREATE", "Role", saved.getId(), "Role " + saved.getCode() + " created",
+        log.info("role.created id={} name={}", saved.getId(), saved.getName());
+        audit.record("CREATE", "Role", saved.getId(), "Role " + saved.getName() + " created",
                 Map.of("functionalityIds", saved.getFunctionalityIds()));
         return saved;
     }
 
     @Transactional
-    public RoleEntity update(Long id, String code, String name, String description, List<Long> functionalityIds) {
+    public RoleEntity update(Long id, String name, String description, List<Long> functionalityIds) {
         RoleEntity role = get(id);
-        if (code != null && !code.trim().equalsIgnoreCase(role.getCode())) {
-            throw new BadRequestException("A role code cannot be changed.");
+        String trimmed = name == null ? "" : name.trim();
+        if (trimmed.isBlank()) {
+            throw new BadRequestException("Role name is required.");
         }
         List<Long> checked = checkedFunctionalities(functionalityIds);
         if (RoleCodes.ADMINISTRATOR.equals(role.getCode())) {
             throw new ConflictException("The administrator role always has every functionality and cannot be edited.");
         }
-        role.setName(name.trim());
+        role.setName(trimmed);
         role.setDescription(description);
         role.setFunctionalityIds(checked);
         RoleEntity saved = roles.save(role);
-        log.info("role.updated id={} code={}", saved.getId(), saved.getCode());
-        audit.record("UPDATE", "Role", saved.getId(), "Role " + saved.getCode() + " updated",
+        log.info("role.updated id={} name={}", saved.getId(), saved.getName());
+        audit.record("UPDATE", "Role", saved.getId(), "Role " + saved.getName() + " updated",
                 Map.of("functionalityIds", saved.getFunctionalityIds()));
         return saved;
     }
@@ -109,8 +110,29 @@ public class RoleService {
             }
         }
         roles.delete(role);
-        log.info("role.deleted id={} code={}", id, role.getCode());
-        audit.record("DELETE", "Role", id, "Role " + role.getCode() + " deleted", Map.of());
+        log.info("role.deleted id={} name={}", id, role.getName());
+        audit.record("DELETE", "Role", id, "Role " + role.getName() + " deleted", Map.of());
+    }
+
+    /** Internal unique key for DB/auth — never exposed on the role API. */
+    private String uniqueSystemKey(String name) {
+        String base = name.toUpperCase().replaceAll("[^A-Z0-9]+", "_").replaceAll("^_+|_+$", "");
+        if (base.isBlank()) {
+            base = "ROLE";
+        }
+        if (!Character.isLetter(base.charAt(0))) {
+            base = "ROLE_" + base;
+        }
+        if (base.length() > 50) {
+            base = base.substring(0, 50).replaceAll("_+$", "");
+        }
+        String candidate = base;
+        int n = 2;
+        while (roles.findByCode(candidate).isPresent()) {
+            String suffix = "_" + n++;
+            candidate = base.substring(0, Math.min(base.length(), 60 - suffix.length())) + suffix;
+        }
+        return candidate;
     }
 
     private List<Long> checkedFunctionalities(List<Long> functionalityIds) {

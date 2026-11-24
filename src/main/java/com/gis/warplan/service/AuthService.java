@@ -10,6 +10,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.gis.warplan.config.WarplanProperties;
 import com.gis.warplan.domain.AppUser;
 import com.gis.warplan.domain.Theme;
 import com.gis.warplan.domain.UserSession;
@@ -26,7 +27,6 @@ import com.gis.warplan.web.UnavailableException;
 public class AuthService {
 
     private static final String INVALID = "Invalid name or password.";
-    private static final String APP_NAME = "GIS Warplan";
     private static final Logger log = LogManager.getLogger(AuthService.class);
 
     private final AppUserRepository users;
@@ -38,10 +38,11 @@ public class AuthService {
     private final AuditService audit;
     private final ActivationService activation;
     private final UserService userService;
+    private final WarplanProperties properties;
 
     public AuthService(AppUserRepository users, UserSessionRepository sessions, ThemeAllotmentService allotment,
             PasswordEncoder passwordEncoder, JwtService jwtService, AccessService access, AuditService audit,
-            ActivationService activation, UserService userService) {
+            ActivationService activation, UserService userService, WarplanProperties properties) {
         this.users = users;
         this.sessions = sessions;
         this.allotment = allotment;
@@ -51,6 +52,7 @@ public class AuthService {
         this.audit = audit;
         this.activation = activation;
         this.userService = userService;
+        this.properties = properties;
     }
 
     @Transactional(readOnly = true)
@@ -63,8 +65,9 @@ public class AuthService {
         List<LoginUser> activeUsers = users.findByActiveTrueOrderByNameAsc().stream()
                 .map(user -> new LoginUser(user.getId(), user.getName()))
                 .toList();
+        String name = properties.getApplicationName();
         log.info("login_context.served users={} themeId={}", activeUsers.size(), theme.getId());
-        return new LoginContext(APP_NAME, APP_NAME, activeUsers, theme);
+        return new LoginContext(name, name, activeUsers, theme);
     }
 
     @Transactional

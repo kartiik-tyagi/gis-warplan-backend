@@ -22,10 +22,9 @@ import com.gis.warplan.service.RoleService;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-/** Functionalities are read-only; roles are managed with MANAGE_ROLES. */
+/** Functionalities are read-only; roles are managed with MANAGE_ROLES. Role codes are internal only. */
 @RestController
 @RequestMapping("/api/v1")
 public class RoleController {
@@ -59,15 +58,14 @@ public class RoleController {
     @PostMapping("/roles")
     public ResponseEntity<RoleResponse> create(@Valid @RequestBody RoleRequest request) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_ROLES);
-        RoleEntity role = roles.create(request.code(), request.name(), request.description(), request.functionalityIds());
+        RoleEntity role = roles.create(request.name(), request.description(), request.functionalityIds());
         return ResponseEntity.status(HttpStatus.CREATED).body(RoleResponse.of(role));
     }
 
     @PutMapping("/roles/{id}")
     public RoleResponse update(@PathVariable Long id, @Valid @RequestBody RoleRequest request) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_ROLES);
-        return RoleResponse.of(roles.update(id, request.code(), request.name(), request.description(),
-                request.functionalityIds()));
+        return RoleResponse.of(roles.update(id, request.name(), request.description(), request.functionalityIds()));
     }
 
     @DeleteMapping("/roles/{id}")
@@ -78,17 +76,16 @@ public class RoleController {
     }
 
     public record RoleRequest(
-            @NotBlank @Size(max = 60) @Pattern(regexp = "^[A-Za-z][A-Za-z0-9_]*$") String code,
             @NotBlank @Size(max = 120) String name,
             @Size(max = 500) String description,
             List<Long> functionalityIds) {
     }
 
-    public record RoleResponse(Long id, String code, String name, String description, List<Long> functionalityIds,
+    public record RoleResponse(Long id, String name, String description, List<Long> functionalityIds,
             boolean standard, Instant createdAt, Instant updatedAt) {
 
         static RoleResponse of(RoleEntity role) {
-            return new RoleResponse(role.getId(), role.getCode(), role.getName(), role.getDescription(),
+            return new RoleResponse(role.getId(), role.getName(), role.getDescription(),
                     role.getFunctionalityIds() == null ? List.of() : role.getFunctionalityIds(), role.isStandard(),
                     role.getCreatedAt(), role.getUpdatedAt());
         }

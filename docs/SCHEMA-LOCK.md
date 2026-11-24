@@ -11,7 +11,7 @@ Do not invent substitute fields (`description` / `configJson` / `status` on scen
 | side | Master | id, name, description, kind (country\|alliance), theme_id, icon, colour, game_id (alliance only), scenario_id (denormalized from game, alliance only), created_at, updated_at |
 | alliance_member | Link | id, alliance_side_id, country_side_id |
 | functionality | Master | id, code, name, description |
-| role | Master | id, code, name, description, functionality_ids, standard |
+| role | Master | id, code (internal system key only — not on role API), name, description, functionality_ids, standard |
 | node_type | Master | id, code, name, description, properties, created_at, updated_at, created_by, updated_by |
 | standard_orbat | Working | id, side_id, orbat_json, metadata, version, created_at, updated_at, updated_by |
 | playing_orbat | Working | id, game_id, scenario_id (denormalized from game), side_id, orbat_json, metadata (draft\|finalized), version, created_at, updated_at, updated_by |

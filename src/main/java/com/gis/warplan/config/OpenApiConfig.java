@@ -12,11 +12,12 @@ public class OpenApiConfig {
 
     @Bean
     OpenAPI warplanOpenApi(WarplanProperties properties) {
+        String name = properties.getApplicationName();
         return new OpenAPI()
                 .info(new Info()
-                        .title("GIS Warplan")
+                        .title(name)
                         .version("0.1.0")
-                        .description("GIS Warplan API. Operations are served under " + properties.getApiBasePath() + "."))
-                .addServersItem(new Server().url("/").description("GIS Warplan"));
+                        .description(name + " API. Operations are served under " + properties.getApiBasePath() + "."))
+                .addServersItem(new Server().url("/").description(name));
     }
 }

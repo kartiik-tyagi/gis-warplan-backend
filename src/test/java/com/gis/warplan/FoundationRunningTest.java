@@ -34,7 +34,7 @@ class FoundationRunningTest {
 
         ResponseEntity<String> info = rest.getForEntity("/actuator/info", String.class);
         assertThat(info.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(info.getBody()).contains("GIS Warplan");
+        assertThat(info.getBody()).contains("JAYANT");
 
         ResponseEntity<String> swagger = rest.getForEntity("/swagger-ui.html", String.class);
         assertThat(swagger.getStatusCode()).isEqualTo(HttpStatus.OK);
