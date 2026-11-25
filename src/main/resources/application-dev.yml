@@ -1,0 +1,9 @@
+# Dev profile. Run the API with no extra flag (this profile is the default) and the UI with npm run dev.
+# The Vite server on port 5173 proxies /api to this process on port 8091.
+server:
+  port: 8091
+
+warplan:
+  cors-origins:
+    - http://127.0.0.1:5173
+    - http://localhost:5173

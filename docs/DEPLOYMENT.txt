@@ -1,0 +1,537 @@
+GIS WARPLAN DEPLOYMENT
+======================
+
+The UI and the API are two separate products. Build each one, copy each one
+to the place it should run, then point them at each other. Replacing the API
+does not replace the UI. Replacing the UI does not replace the API.
+
+They may run on one Tomcat, on two Tomcats on one machine, on two machines,
+or with Apache httpd serving the UI and Tomcat serving the API.
+
+
+1. What each piece is
+---------------------
+
+Frontend (gis-warplan-frontend)
+  A static site. "npm run build" writes a folder named dist.
+  Copy that folder where a web server can serve it.
+  After copying, edit config.js in the copied folder. That file is the only
+  UI setting. It tells the browser where the API is.
+
+Backend (gis-warplan-backend)
+  A WAR named gis-warplan.war. It is the API only. It does not contain the UI.
+  On Tomcat the file name is the address:
+      webapps/gis-warplan.war  ->  http://HOST:PORT/gis-warplan/
+  The API is then:
+      http://HOST:PORT/gis-warplan/api/v1
+  Health:
+      http://HOST:PORT/gis-warplan/actuator/health
+
+Do not also create a folder webapps/gis-warplan and put the UI there.
+Tomcat treats gis-warplan.war and the folder webapps/gis-warplan as the same
+application. The next time the WAR is copied in, Tomcat deletes that folder
+and the UI is gone.
+
+Give the UI its own folder. On a single Tomcat the usual place is webapps/ROOT,
+so people open http://HOST:PORT/ .
+
+
+2. Prerequisites
+----------------
+
+Build machine (the PC where you compile; it can be the server itself)
+
+  JDK 17 or 21. JAVA_HOME must point at that JDK.
+      java -version
+
+  The backend repo. Maven is not installed separately.
+  Use mvnw.cmd (Windows) or ./mvnw (Linux) inside the backend repo.
+
+  Node.js 22.12 or newer, and below 25, plus npm.
+  Node is required only to build the UI. The server that runs the site does
+  not need Node if you copy dist onto it.
+      node -v
+      npm -v
+
+  Git clones of both repositories.
+
+Server that runs the API
+
+  JDK 17 or 21, with JAVA_HOME set. Tomcat refuses to start without it.
+
+  Apache Tomcat 10.1.x. Tomcat 9 cannot run this WAR.
+  This application is built for Jakarta Servlet, which Tomcat 10.1 provides.
+
+  PostgreSQL, reachable from the API server.
+  The database user must be allowed to create a database, or the database
+  gis_warplan must already exist.
+
+  PostGIS installed in that PostgreSQL. On first start the API creates the
+  database gis_warplan and enables PostGIS when warplan.db.auto-create is
+  true (it is true in dev and prod).
+
+  A non-blank database password. The API stops if DB_PASSWORD is empty.
+
+  Ports you will actually use must be free. Tomcat's HTTP port is 8080 until
+  you change conf/server.xml. The shutdown port is 8005. Two Tomcats on one
+  machine need two different HTTP ports and two different shutdown ports.
+
+  The API host must accept inbound TCP on its HTTP port (Windows Firewall or
+  the server firewall).
+
+Server that runs the UI
+
+  Either Tomcat 10.1, or Apache httpd 2.4.
+  It does not need PostgreSQL, PostGIS, or Node.
+
+Not required to boot
+
+  Kafka. The listener does not start unless you turn it on.
+  Apache httpd, unless you choose Case D.
+
+
+3. Profiles
+-----------
+
+Backend
+  dev   Default. No extra flag. application.yml plus application-dev.yml.
+        Embedded port 8091. Used by "mvn spring-boot:run" and by the Vite
+        dev server. Not used for the Tomcat WAR steps below.
+  prod  Set SPRING_PROFILES_ACTIVE=prod in Tomcat's setenv file.
+        application.yml plus application-prod.yml.
+        The logging file inside the prod profile is
+        /etc/coraltelecom/gis-warplan.xml. On a machine where that path does
+        not exist, override it with -Dlogging.config as shown in section 4.
+
+Frontend
+  dev   npm run dev. Vite on http://127.0.0.1:5173 proxies /api to
+        http://127.0.0.1:8091. public/config.js stays apiBase: "/api/v1".
+  prod  npm run build. You then edit the copied config.js. You do not edit
+        the source config.js for a server; leave the source on /api/v1 so
+        the next developer build still works.
+
+
+4. Prepare the API server once
+------------------------------
+
+Do this before the first copy of the WAR. Later releases do not repeat it.
+
+4.1 Folders that must survive a new WAR
+
+Windows example (any drive and folder is fine; keep the same paths in setenv):
+
+  C:\coraltelecom\gis-warplan\config
+  C:\coraltelecom\gis-warplan\log
+  C:\coraltelecom\gis-warplan\images\icon
+  C:\coraltelecom\gis-warplan\images\scenario-attachments
+
+Linux example:
+
+  /opt/gis-warplan/config
+  /opt/gis-warplan/log
+  /opt/gis-warplan/images/icon
+  /opt/gis-warplan/images/scenario-attachments
+
+4.2 Log configuration
+
+Copy gis-warplan-backend/config/gis-warplan.xml into the config folder above.
+
+Edit LOG_BASE so it is an absolute path. Forward slashes work on Windows.
+
+  <Property name="LOG_BASE">C:/coraltelecom/gis-warplan/log</Property>
+
+The API then writes:
+
+  .../log/gis-warplan/app.log
+  .../log/gis-warplan/lib.log
+
+4.3 Tomcat port
+
+Open Tomcat conf/server.xml. The HTTP Connector is the port browsers use.
+Leave 8080 when it is free. When another program already listens on 8080,
+change that Connector port and use the new number everywhere below.
+
+Also note the Server port (shutdown), default 8005. A second Tomcat on the
+same machine must use a different shutdown port.
+
+4.4 setenv
+
+Create this file. Tomcat reads it on every start.
+
+  Windows:  TOMCAT/bin/setenv.bat
+  Linux:    TOMCAT/bin/setenv.sh
+
+Windows (one line each, no spaces around = inside the quotes):
+
+  set "SPRING_PROFILES_ACTIVE=prod"
+  set "DB_URL=jdbc:postgresql://localhost:5432/gis_warplan"
+  set "DB_USER=postgres"
+  set "DB_PASSWORD=the-real-database-password"
+  set "WARPLAN_JWT_SECRET=a-long-random-string"
+  set "WARPLAN_ICONS_ROOT=C:/coraltelecom/gis-warplan/images/icon"
+  set "WARPLAN_ATTACHMENTS_ROOT=C:/coraltelecom/gis-warplan/images/scenario-attachments"
+  set "JAVA_OPTS=%JAVA_OPTS% -Dlogging.config=C:/coraltelecom/gis-warplan/config/gis-warplan.xml"
+
+Linux:
+
+  export SPRING_PROFILES_ACTIVE=prod
+  export DB_URL=jdbc:postgresql://localhost:5432/gis_warplan
+  export DB_USER=postgres
+  export DB_PASSWORD=the-real-database-password
+  export WARPLAN_JWT_SECRET=a-long-random-string
+  export WARPLAN_ICONS_ROOT=/opt/gis-warplan/images/icon
+  export WARPLAN_ATTACHMENTS_ROOT=/opt/gis-warplan/images/scenario-attachments
+  export JAVA_OPTS="$JAVA_OPTS -Dlogging.config=/opt/gis-warplan/config/gis-warplan.xml"
+
+On Linux you may instead copy the log xml to /etc/coraltelecom/gis-warplan.xml
+and omit the -Dlogging.config line. LOG_BASE inside that file must still be
+absolute.
+
+DB_URL may point at PostgreSQL on another machine. Use that machine's address.
+
+WARPLAN_CORS_ORIGINS is required only when the UI and the API are different
+origins. An origin is scheme + host + port. Same host and same port is one
+origin even when the UI is / and the API is /gis-warplan. Add the variable
+only in Cases B, C, and the cross-origin form of Case D:
+
+  set "WARPLAN_CORS_ORIGINS=http://ui-host:ui-port"
+
+Several origins are comma-separated with no spaces.
+
+4.5 Icon folder on a database that already ran somewhere else
+
+WARPLAN_ICONS_ROOT is used when the database has no icon path yet.
+If asset_management.path is already filled (often the relative value
+images/icon), the API keeps using that stored path, resolved from the
+directory Tomcat was started in. On a fresh database the environment
+variable is stored and used. On an old database, set the icon folder to the
+absolute path in Icons administration, or update asset_management.path to
+that absolute path, then restart.
+
+Scenario attachments always follow WARPLAN_ATTACHMENTS_ROOT.
+
+4.6 How to start Tomcat
+
+JAVA_HOME must be set.
+
+Windows, from a prompt:
+
+  set CATALINA_HOME=C:\apache-tomcat-10.1.62
+  set CATALINA_BASE=C:\apache-tomcat-10.1.62
+  C:\apache-tomcat-10.1.62\bin\startup.bat
+
+Linux:
+
+  export CATALINA_HOME=/opt/tomcat
+  export CATALINA_BASE=/opt/tomcat
+  /opt/tomcat/bin/startup.sh
+
+If startup says CATALINA_HOME is not defined correctly, the prompt was not
+in Tomcat's bin and CATALINA_HOME was empty. Set CATALINA_HOME as above.
+
+Stop with shutdown.bat or shutdown.sh, with the same CATALINA_HOME.
+
+
+5. Build both artifacts
+-----------------------
+
+On the build machine.
+
+UI:
+
+  cd gis-warplan-frontend
+  npm ci
+  npm run build
+
+Result: gis-warplan-frontend/dist
+  index.html, assets, avatars, config.js, WEB-INF, META-INF, and the images.
+
+API:
+
+  cd gis-warplan-backend
+  mvnw.cmd clean package -DskipTests          (Windows)
+  ./mvnw clean package -DskipTests            (Linux)
+
+Result: gis-warplan-backend/target/gis-warplan.war
+
+Copy those two results to the server. Do not copy the source trees unless
+the server is also the build machine.
+
+
+6. Case A. One machine, one Tomcat
+----------------------------------
+
+Use this when the UI and the API share a host and a port.
+
+6.1 Stop Tomcat.
+
+6.2 API
+
+  Copy gis-warplan.war to TOMCAT/webapps/gis-warplan.war
+  Do not create webapps/gis-warplan yourself. Tomcat unpacks the WAR.
+
+6.3 UI
+
+  Remove TOMCAT/webapps/ROOT and TOMCAT/webapps/ROOT.war if a previous
+  application is there (keep a copy if you still need it).
+
+  Create TOMCAT/webapps/ROOT
+  Copy the contents of dist into that folder, including WEB-INF and META-INF.
+  The folder must contain index.html, not a nested dist folder.
+
+  Edit TOMCAT/webapps/ROOT/config.js and set:
+
+    window.warplan = {
+      apiBase: "/gis-warplan/api/v1"
+    }
+
+  WEB-INF/rewrite.config is what makes a refresh of /exercise/scenarios
+  return the UI instead of a 404. It is already in dist. Leave it in place.
+
+6.4 Do not set WARPLAN_CORS_ORIGINS. The browser origin and the API origin
+    are the same.
+
+6.5 Start Tomcat.
+
+6.6 Open
+
+  http://HOST:PORT/
+  http://HOST:PORT/gis-warplan/actuator/health
+
+People on the network use the server's address, for example
+http://192.168.1.10:8080/ . HOST is not only 127.0.0.1.
+
+
+7. Case B. One machine, two Tomcat instances
+--------------------------------------------
+
+Use this when the UI and the API must be able to restart separately.
+
+Make two Tomcat directories, or one install and two CATALINA_BASE trees.
+Give them different HTTP ports and different shutdown ports. Example:
+UI Tomcat on 8080, API Tomcat on 8081, shutdown ports 8005 and 8006.
+
+7.1 API Tomcat
+
+  Only gis-warplan.war in webapps.
+  The setenv from section 4 goes on this Tomcat only.
+  Add:
+
+    WARPLAN_CORS_ORIGINS=http://HOST:8080
+
+  Use the real host name people type in the browser.
+
+7.2 UI Tomcat
+
+  Only the dist contents in webapps/ROOT, including WEB-INF and META-INF.
+  This Tomcat does not need DB_PASSWORD or SPRING_PROFILES_ACTIVE.
+  Edit webapps/ROOT/config.js:
+
+    window.warplan = {
+      apiBase: "http://HOST:8081/gis-warplan/api/v1"
+    }
+
+7.3 Start the API Tomcat first, then the UI Tomcat.
+
+7.4 Open http://HOST:8080/
+
+
+8. Case C. Two machines
+-----------------------
+
+Same as Case B, with the UI Tomcat on machine A and the API Tomcat on
+machine B.
+
+  config.js on A:
+    apiBase: "http://MACHINE-B:8080/gis-warplan/api/v1"
+
+  setenv on B:
+    DB_URL points at the PostgreSQL machine (B itself, or a third machine)
+    WARPLAN_CORS_ORIGINS=http://MACHINE-A:8080
+
+Open the firewall on B for the API port, and on A for the UI port.
+PostgreSQL must accept connections from B.
+
+Open http://MACHINE-A:8080/ from any PC that can reach A.
+
+
+9. Case D. Apache httpd for the UI, Tomcat for the API
+------------------------------------------------------
+
+Use this when Apache is the site people open, and Tomcat only runs the WAR.
+They may be on the same machine or on two machines. Prefer proxying so the
+browser sees one origin.
+
+9.1 Tomcat
+
+  Deploy only gis-warplan.war, with the setenv from section 4.
+  You do not put the UI in this Tomcat.
+  If Apache and Tomcat are on the same machine and Apache proxies
+  /gis-warplan, do not set WARPLAN_CORS_ORIGINS.
+  If the browser will call Tomcat's address directly, set
+  WARPLAN_CORS_ORIGINS to the Apache origin (scheme, host, and port).
+
+9.2 Copy dist to Apache's document root, for example:
+
+  Windows:  C:\coraltelecom\gis-warplan\www
+  Linux:    /var/www/gis-warplan
+
+  Include every file from dist. Edit config.js in that folder:
+
+    window.warplan = {
+      apiBase: "/gis-warplan/api/v1"
+    }
+
+  Apache does not read Tomcat's WEB-INF/rewrite.config. Apache needs its
+  own rule so a refresh of a UI route returns index.html.
+
+9.3 Apache 2.4 site, same machine, Tomcat HTTP on 8080
+
+  Enable rewrite, proxy, and proxy_http.
+
+  DocumentRoot "C:/coraltelecom/gis-warplan/www"
+  <Directory "C:/coraltelecom/gis-warplan/www">
+      Require all granted
+      RewriteEngine On
+      RewriteRule ^gis-warplan(/|$) - [L]
+      RewriteCond %{REQUEST_FILENAME} -f [OR]
+      RewriteCond %{REQUEST_FILENAME} -d
+      RewriteRule ^ - [L]
+      RewriteRule ^ index.html [L]
+  </Directory>
+
+  ProxyPreserveHost On
+  ProxyPass        /gis-warplan  http://127.0.0.1:8080/gis-warplan
+  ProxyPassReverse /gis-warplan  http://127.0.0.1:8080/gis-warplan
+
+  On two machines, point ProxyPass at http://MACHINE-B:8080/gis-warplan
+  instead of 127.0.0.1.
+
+9.4 Open http://APACHE-HOST/  (port 80, or 443 when you add TLS).
+
+
+10. Which values to use
+-----------------------
+
+Case A, one Tomcat
+  config.js apiBase     /gis-warplan/api/v1
+  WARPLAN_CORS_ORIGINS  omit
+
+Case B, two Tomcats, ports 8080 (UI) and 8081 (API)
+  config.js apiBase     http://HOST:8081/gis-warplan/api/v1
+  WARPLAN_CORS_ORIGINS  http://HOST:8080
+
+Case C, UI on A, API on B
+  config.js apiBase     http://MACHINE-B:API-PORT/gis-warplan/api/v1
+  WARPLAN_CORS_ORIGINS  http://MACHINE-A:UI-PORT
+
+Case D, Apache proxies /gis-warplan to Tomcat
+  config.js apiBase     /gis-warplan/api/v1
+  WARPLAN_CORS_ORIGINS  omit
+
+Case D, browser calls Tomcat directly
+  config.js apiBase     http://API-HOST:API-PORT/gis-warplan/api/v1
+  WARPLAN_CORS_ORIGINS  http://APACHE-HOST
+
+
+11. Start and check
+-------------------
+
+11.1 Start the API Tomcat, then the UI server if it is a different process.
+
+11.2 http://API-HOST:API-PORT/gis-warplan/actuator/health
+     Expect {"status":"UP"}.
+
+11.3 Log file .../log/gis-warplan/app.log exists and grows.
+     It should say the prod profile is active.
+     It should say PostGIS is available.
+
+11.4 The attachment directory from WARPLAN_ATTACHMENTS_ROOT exists.
+     The icon directory contains circle.svg, square.svg, and triangle.svg
+     after the first successful start on a fresh database.
+
+11.5 Open the UI address. The login page appears. It is HTML, not a JSON
+     message. A JSON body that says authentication is required means the
+     browser asked the API for a page. config.js apiBase is wrong, or the
+     UI files were copied into the API folder.
+
+11.6 Sign in. The first start of an empty database creates the user APEX.
+     The initial password is APEX_PASSWORD in
+     src/main/java/com/gis/warplan/config/DomainSeedRunner.java.
+     Change that password after the first sign-in.
+
+11.7 Open a screen such as Scenario Management, refresh the browser, and
+     confirm the same screen comes back.
+
+11.8 From another PC, open the UI with the server's network address.
+
+
+12. Ship a later release
+------------------------
+
+UI change only:
+
+  npm run build
+  Copy the new dist contents over the UI folder.
+  Put back the server's config.js if the copy replaced it
+  (apiBase must stay the value from section 10).
+  Do not touch gis-warplan.war.
+  Do not delete the images or log folders.
+
+API change only:
+
+  mvnw.cmd clean package -DskipTests
+  Copy the new gis-warplan.war over webapps/gis-warplan.war
+  Tomcat reloads the API.
+  Do not delete the UI folder, images, log, or config.
+
+Both:
+
+  Do the two copies above. They do not depend on each other.
+
+
+13. When it does not come up
+----------------------------
+
+CATALINA_HOME is not defined correctly
+  Set CATALINA_HOME to the Tomcat directory and start again.
+
+Port already in use
+  Another program has the Connector port. Change it in server.xml.
+
+Health never returns, catalina log says no suitable driver
+  The running WAR is older than the build that loads the PostgreSQL driver
+  inside Tomcat. Deploy the current gis-warplan.war.
+
+Health never returns, log says database password is required
+  DB_PASSWORD in setenv is missing or empty.
+
+Health never returns, log says PostgreSQL could not be reached
+  PostgreSQL is stopped, DB_URL/DB_USER/DB_PASSWORD are wrong, or the
+  firewall between the API and PostgreSQL is closed.
+
+Health never returns, log says PostGIS could not be enabled
+  Install PostGIS for that PostgreSQL and restart the API.
+
+Login page is JSON "Authentication is required"
+  The UI is not being served. You opened the API host at / or you put the
+  UI files inside webapps/gis-warplan. Use the UI folder from section 6, 7,
+  8, or 9.
+
+Login page stays on "Opening the application" or says the service is not
+  reachable
+  config.js apiBase does not match the real API, or the API is down, or
+  (Cases B, C, and cross-origin D) WARPLAN_CORS_ORIGINS does not include
+  the exact UI origin, including http and the port.
+
+Refresh of a UI route is 404
+  On Tomcat, WEB-INF/rewrite.config and META-INF/context.xml from dist were
+  not copied with the UI.
+  On Apache, the RewriteRule to index.html in section 9.3 is missing.
+
+Icons look empty after a move to a new server
+  The database still has a relative icon path. Set an absolute folder as
+  described in section 4.5. Copy the old icon files into that folder.
+
+Other PCs cannot connect, this PC can
+  Open the UI port, and the API port when it is different, in the firewall.

@@ -1,6 +1,7 @@
 package com.gis.warplan.config;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -41,7 +42,15 @@ public class WarplanProperties {
     }
 
     public void setCorsOrigins(List<String> corsOrigins) {
-        this.corsOrigins = corsOrigins == null ? List.of() : List.copyOf(corsOrigins);
+        if (corsOrigins == null) {
+            this.corsOrigins = List.of();
+            return;
+        }
+        this.corsOrigins = corsOrigins.stream()
+                .flatMap(value -> Arrays.stream(value.split(",")))
+                .map(String::trim)
+                .filter(value -> !value.isEmpty())
+                .toList();
     }
 
     public Db getDb() {
@@ -94,14 +103,14 @@ public class WarplanProperties {
     }
 
     public static class Icons {
-        private String root = "images/icon";
+        private String root = "asset-repository";
 
         public String getRoot() {
             return root;
         }
 
         public void setRoot(String root) {
-            this.root = root == null || root.isBlank() ? "images/icon" : root;
+            this.root = root == null || root.isBlank() ? "asset-repository" : root;
         }
     }
 
