@@ -49,10 +49,23 @@ public class DatabaseBootstrap implements ApplicationListener<ApplicationEnviron
         if (password == null || password.isBlank()) {
             throw stop("Database password is required.", null);
         }
+        loadDriver();
 
         Target target = readTarget(url);
         createDatabase(target, username, password);
         enablePostgis(url, username, password, target.name());
+    }
+
+    /**
+     * External Tomcat does not register a JDBC driver that lives in {@code WEB-INF/lib}
+     * until that driver class is loaded. {@code java -jar} loads it automatically.
+     */
+    private static void loadDriver() {
+        try {
+            Class.forName("org.postgresql.Driver");
+        } catch (ClassNotFoundException exception) {
+            throw stop("PostgreSQL JDBC driver is not on the classpath.", exception);
+        }
     }
 
     private static Target readTarget(String url) {
