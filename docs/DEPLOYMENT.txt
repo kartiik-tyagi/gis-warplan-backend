@@ -63,8 +63,10 @@ Server that runs the API
 
   JDK 17 or 21, with JAVA_HOME set. Tomcat refuses to start without it.
 
-  Apache Tomcat 10.1.x. Tomcat 9 cannot run this WAR.
-  This application is built for Jakarta Servlet, which Tomcat 10.1 provides.
+  Apache Tomcat 10.1.x or 11.0.x. Tomcat 9 cannot run this WAR.
+  This application is built for Jakarta Servlet (Tomcat 10.1+).
+  To host GeoServer 3.x in the same Tomcat, use Tomcat 11.0.x
+  (see MULTI-APP-TOMCAT.txt). Tomcat 10.1 cannot officially run GeoServer.
 
   PostgreSQL, reachable from the API server.
   The database user must be allowed to create a database, or the database
