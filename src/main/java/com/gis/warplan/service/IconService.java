@@ -56,10 +56,12 @@ public class IconService {
             "triangle.svg", svg("<polygon points=\"8,2 14,14 2,14\" fill=\"var(--wp-primary)\" data-wp-fill=\"primary\"/>"));
 
     private final AssetManagementService assets;
+    private final AssetService store;
     private final String fallbackRoot;
 
-    public IconService(WarplanProperties properties, AssetManagementService assets) {
+    public IconService(WarplanProperties properties, AssetManagementService assets, AssetService store) {
         this.assets = assets;
+        this.store = store;
         this.fallbackRoot = properties.getIcons().getRoot();
     }
 
@@ -120,59 +122,27 @@ public class IconService {
     }
 
     public IconNode tree() {
-        Path root = root();
-        ensureRoot(root);
-        return node(root, "", assets.labels());
+        IconNode root = new IconNode("", "", "directory", "", new ArrayList<>());
+        for (com.gis.warplan.domain.Asset asset : store.list(com.gis.warplan.domain.AssetKind.ICON)) {
+            place(root, asset.getStorageKey(), asset.displayName());
+        }
+        return root;
     }
 
     public IconContent read(String relativePath) {
-        if (relativePath == null || relativePath.isBlank()) {
-            throw new BadRequestException("Icon path is required.");
-        }
-        Path root = root();
-        Path file = resolveExisting(root, relativePath);
-        if (!Files.isRegularFile(file)) {
-            throw new BadRequestException("Icon path is not a file.");
-        }
-        MediaType type = mediaType(file.getFileName().toString());
-        if (type == null) {
-            throw new BadRequestException("Icon type is not supported.");
-        }
-        try {
-            return new IconContent(Files.readAllBytes(file), type);
-        } catch (IOException exception) {
-            throw new IllegalStateException("Icon could not be read", exception);
-        }
+        AssetService.AssetContent content = store.readByKey(relativePath);
+        return new IconContent(content.bytes(), content.mediaType());
     }
 
     public String upload(String directory, String originalName, byte[] content) {
-        if (content == null || content.length == 0) {
-            throw new BadRequestException("Icon file is empty.");
-        }
-        if (content.length > MAX_BYTES) {
-            throw new BadRequestException("Icon file is too large.");
-        }
-        String fileName = originalName == null ? "" : originalName.trim();
-        if (!FILE_NAME.matcher(fileName).matches()) {
-            throw new BadRequestException("Icon file name is not valid.");
-        }
-        MediaType type = mediaType(fileName);
-        if (type == null) {
-            throw new BadRequestException("Icon type is not supported.");
-        }
-        if (type.getSubtype().equals("svg+xml")) {
-            content = drawnBytes(new String(content, StandardCharsets.UTF_8));
-        }
-        return writeNew(directory, fileName, content);
+        com.gis.warplan.domain.Asset stored = store.storeUpload(com.gis.warplan.domain.AssetKind.ICON, originalName, content, null);
+        return stored.getStorageKey();
     }
 
     /** Stores a drawing as a new SVG. The name may omit {@code .svg}. */
     public StoredIcon draw(String directory, String name, String svg) {
-        String fileName = svgFileName(name);
-        byte[] content = drawnBytes(svg);
-        String path = writeNew(directory == null ? "" : directory, fileName, content);
-        log.info("icon.drawn path={} bytes={}", path, content.length);
-        return new StoredIcon(path, content.length);
+        com.gis.warplan.domain.Asset stored = store.storeDrawing(name, svg, null);
+        return new StoredIcon(stored.getStorageKey(), (int) Math.min(stored.getSizeBytes(), Integer.MAX_VALUE));
     }
 
     /** Refuses to change an existing file. A revised drawing is stored under a new name. */
@@ -228,6 +198,32 @@ public class IconService {
 
     private static String normalize(String text) {
         return text == null ? "" : text.replace("\r\n", "\n").replace('\r', '\n').trim();
+    }
+
+    private void place(IconNode directory, String storageKey, String label) {
+        String[] parts = storageKey.split("/");
+        IconNode current = directory;
+        StringBuilder path = new StringBuilder();
+        for (int i = 0; i < parts.length; i++) {
+            if (path.length() > 0) {
+                path.append('/');
+            }
+            path.append(parts[i]);
+            boolean file = i == parts.length - 1;
+            String childPath = path.toString();
+            IconNode existing = null;
+            for (IconNode child : current.children()) {
+                if (child.path().equals(childPath)) {
+                    existing = child;
+                    break;
+                }
+            }
+            if (existing == null) {
+                existing = new IconNode(parts[i], childPath, file ? "file" : "directory", file ? label : parts[i], new ArrayList<>());
+                current.children().add(existing);
+            }
+            current = existing;
+        }
     }
 
     private IconNode node(Path path, String relativePath, Map<String, String> labels) {

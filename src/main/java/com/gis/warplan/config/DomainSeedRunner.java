@@ -61,7 +61,7 @@ public class DomainSeedRunner implements ApplicationRunner {
             Map.entry(FunctionalityCodes.MANAGE_ALLIANCE, "Manage alliance"),
             Map.entry(FunctionalityCodes.MANAGE_SCENARIO, "Manage scenario"),
             Map.entry(FunctionalityCodes.MANAGE_GAME, "Manage game"),
-            Map.entry(FunctionalityCodes.MANAGE_ICONS, "Manage icons"),
+            Map.entry(FunctionalityCodes.MANAGE_ICONS, "Manage assets"),
             Map.entry(FunctionalityCodes.VIEW_AUDIT, "View audit"),
             Map.entry(FunctionalityCodes.CHOOSE_THEME, "Choose theme"));
 
@@ -167,6 +167,11 @@ public class DomainSeedRunner implements ApplicationRunner {
                 created.setName(FUNCTIONALITY_NAMES.getOrDefault(code, code));
                 return functionalities.save(created);
             });
+            String expected = FUNCTIONALITY_NAMES.get(code);
+            if (expected != null && !expected.equals(functionality.getName())) {
+                functionality.setName(expected);
+                functionality = functionalities.save(functionality);
+            }
             ids.add(functionality.getId());
         }
         return ids;

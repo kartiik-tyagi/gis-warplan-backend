@@ -17,6 +17,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.gis.warplan.config.WarplanProperties;
+import com.gis.warplan.domain.Asset;
+import com.gis.warplan.domain.AssetKind;
 import com.gis.warplan.domain.Scenario;
 import com.gis.warplan.repository.ScenarioRepository;
 import com.gis.warplan.web.BadRequestException;
@@ -25,8 +27,7 @@ import com.gis.warplan.web.NotFoundException;
 import jakarta.annotation.PostConstruct;
 
 /**
- * Stores one optional attachment per scenario under {@code warplan.attachments.root}/{scenarioId}/.
- * {@link Scenario#getAttachedFile()} holds the original file name for display.
+ * One attachment per scenario, stored as an asset. The display name stays on the scenario.
  */
 @Service
 public class ScenarioAttachmentService {
@@ -38,10 +39,12 @@ public class ScenarioAttachmentService {
 
     private final Path root;
     private final ScenarioRepository scenarios;
+    private final AssetService assets;
 
-    public ScenarioAttachmentService(WarplanProperties properties, ScenarioRepository scenarios) {
+    public ScenarioAttachmentService(WarplanProperties properties, ScenarioRepository scenarios, AssetService assets) {
         this.root = Paths.get(properties.getAttachments().getRoot()).toAbsolutePath().normalize();
         this.scenarios = scenarios;
+        this.assets = assets;
     }
 
     @PostConstruct
@@ -58,73 +61,101 @@ public class ScenarioAttachmentService {
 
     public String store(Long scenarioId, MultipartFile file) throws IOException {
         if (file == null || file.isEmpty()) {
+            log.warn("scenario.attachment_rejected id={} reason=empty", scenarioId);
             throw new BadRequestException("Choose a file to upload.");
         }
-        if (file.getSize() > MAX_BYTES) {
-            throw new BadRequestException("The attachment is too large (max 10 MB).");
-        }
         String original = file.getOriginalFilename();
-        if (original == null || original.isBlank()) {
-            throw new BadRequestException("The file name is missing.");
-        }
-        String safeName = sanitizeFileName(original);
-        String extension = extensionOf(safeName);
-        if (!ALLOWED.contains(extension)) {
-            throw new BadRequestException("Allowed types: txt, doc, docx, pdf, jpg.");
+        AssetKind kind = AssetService.kindForScenario(original);
+        if (kind == null) {
+            log.warn("scenario.attachment_rejected id={} reason=type", scenarioId);
+            throw new BadRequestException("Allowed types: txt, doc, docx, pdf, jpg, png, gif, webp.");
         }
         Scenario scenario = scenarios.findById(scenarioId)
                 .orElseThrow(() -> new NotFoundException("Scenario not found."));
-
-        Path directory = scenarioDir(scenarioId);
-        Files.createDirectories(directory);
-        clearDirectory(directory);
-        Path target = directory.resolve(safeName);
-        Files.copy(file.getInputStream(), target, StandardCopyOption.REPLACE_EXISTING);
-
-        scenario.setAttachedFile(safeName);
+        byte[] bytes = file.getBytes();
+        Asset stored = assets.storeUpload(kind, original, bytes, null);
+        if (scenario.getAttachmentAssetId() != null) {
+            assets.deleteQuietly(scenario.getAttachmentAssetId());
+        }
+        scenario.setAttachmentAssetId(stored.getId());
+        scenario.setAttachedFile(stored.displayName());
         scenarios.save(scenario);
-        log.info("scenario.attachment.stored id={} file={} bytes={}", scenarioId, safeName, file.getSize());
-        return safeName;
+        clearDirectory(scenarioDir(scenarioId));
+        log.info("scenario.attachment.stored id={} assetId={} bytes={}", scenarioId, stored.getId(), stored.getSizeBytes());
+        return stored.displayName();
     }
 
     public AttachmentContent read(Long scenarioId) {
         Scenario scenario = scenarios.findById(scenarioId)
                 .orElseThrow(() -> new NotFoundException("Scenario not found."));
-        String name = scenario.getAttachedFile();
-        if (name == null || name.isBlank()) {
+        if (scenario.getAttachmentAssetId() == null) {
+            log.warn("scenario.attachment_missing id={}", scenarioId);
             throw new NotFoundException("This scenario has no attachment.");
         }
-        Path file = scenarioDir(scenarioId).resolve(sanitizeFileName(name)).normalize();
-        if (!file.startsWith(scenarioDir(scenarioId)) || !Files.isRegularFile(file)) {
-            throw new NotFoundException("This scenario has no attachment.");
-        }
-        try {
-            String extension = extensionOf(name);
-            MediaType type = mediaType(extension);
-            boolean inline = Set.of("txt", "pdf", "jpg", "jpeg").contains(extension);
-            return new AttachmentContent(Files.readAllBytes(file), type, name, inline);
-        } catch (IOException exception) {
-            throw new IllegalStateException("Attachment could not be read", exception);
-        }
+        AssetService.AssetContent content = assets.read(scenario.getAttachmentAssetId());
+        return new AttachmentContent(content.bytes(), content.mediaType(), content.fileName(), content.inline());
     }
 
     public void clear(Long scenarioId) {
         Scenario scenario = scenarios.findById(scenarioId)
                 .orElseThrow(() -> new NotFoundException("Scenario not found."));
-        Path directory = scenarioDir(scenarioId);
-        clearDirectory(directory);
+        assets.deleteQuietly(scenario.getAttachmentAssetId());
+        scenario.setAttachmentAssetId(null);
         scenario.setAttachedFile(null);
         scenarios.save(scenario);
+        clearDirectory(scenarioDir(scenarioId));
         log.info("scenario.attachment.cleared id={}", scenarioId);
     }
 
-    /** Removes on-disk files when a scenario is deleted. */
+    /** Removes the attached asset when a scenario is deleted. */
     public void purge(Long scenarioId) {
+        Scenario scenario = scenarios.findById(scenarioId).orElse(null);
+        if (scenario != null) {
+            assets.deleteQuietly(scenario.getAttachmentAssetId());
+            scenario.setAttachmentAssetId(null);
+            scenario.setAttachedFile(null);
+        }
         clearDirectory(scenarioDir(scenarioId));
         try {
             Files.deleteIfExists(scenarioDir(scenarioId));
-        } catch (IOException ignored) {
-            // best-effort
+        } catch (IOException exception) {
+            log.warn("scenario.attachment_purge_failed id={} reason={}", scenarioId, exception.getMessage());
+        }
+    }
+
+    /** Copies attachments that still live in the old per-scenario folder into the asset store. */
+    public void importLegacy() {
+        for (Scenario scenario : scenarios.findByAttachedFileIsNotNullAndAttachmentAssetIdIsNull()) {
+            if (scenario.getAttachedFile() == null || scenario.getAttachedFile().isBlank()) {
+                continue;
+            }
+            Path file;
+            try {
+                file = scenarioDir(scenario.getId()).resolve(sanitizeFileName(scenario.getAttachedFile())).normalize();
+            } catch (RuntimeException exception) {
+                log.warn("scenario.attachment_import_skipped id={} reason={}", scenario.getId(), exception.getMessage());
+                continue;
+            }
+            if (!file.startsWith(scenarioDir(scenario.getId())) || !Files.isRegularFile(file)) {
+                log.warn("scenario.attachment_import_missing id={}", scenario.getId());
+                continue;
+            }
+            try {
+                byte[] bytes = Files.readAllBytes(file);
+                AssetKind kind = AssetService.kindForScenario(scenario.getAttachedFile());
+                if (kind == null) {
+                    log.warn("scenario.attachment_import_skipped id={} reason=type", scenario.getId());
+                    continue;
+                }
+                Asset stored = assets.storeUpload(kind, scenario.getAttachedFile(), bytes, null);
+                scenario.setAttachmentAssetId(stored.getId());
+                scenario.setAttachedFile(stored.displayName());
+                scenarios.save(scenario);
+                Files.deleteIfExists(file);
+                log.info("scenario.attachment_imported id={} assetId={}", scenario.getId(), stored.getId());
+            } catch (RuntimeException | IOException exception) {
+                log.warn("scenario.attachment_import_failed id={} reason={}", scenario.getId(), exception.getMessage());
+            }
         }
     }
 

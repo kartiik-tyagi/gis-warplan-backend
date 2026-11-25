@@ -56,11 +56,16 @@ public class GlobalExceptionHandler {
         return respond(HttpStatus.BAD_REQUEST, "VALIDATION", "The request is not valid.", fields);
     }
 
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiError> tooLarge(MaxUploadSizeExceededException exception) {
+        log.warn("Request rejected code=BAD_REQUEST reason=upload_size");
+        return respond(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "The file is larger than 50 MB.", Map.of());
+    }
+
     @ExceptionHandler({
             HttpMessageNotReadableException.class,
             MissingServletRequestParameterException.class,
-            MissingServletRequestPartException.class,
-            MaxUploadSizeExceededException.class
+            MissingServletRequestPartException.class
     })
     public ResponseEntity<ApiError> unreadable(Exception exception) {
         log.warn("Request rejected code=BAD_REQUEST");

@@ -83,14 +83,20 @@ public class AuthController {
             String applicationName,
             String exerciseTitle,
             List<LoginUser> activeUsers,
-            ThemeResponse loginTheme) {
+            ThemeResponse loginTheme,
+            String logoUrl,
+            String faviconUrl,
+            String loginBackgroundUrl) {
 
         static LoginContextResponse of(LoginContext context) {
             return new LoginContextResponse(
                     context.applicationName(),
                     context.exerciseTitle(),
                     context.activeUsers(),
-                    ThemeResponse.of(context.loginTheme()));
+                    ThemeResponse.of(context.loginTheme()),
+                    context.logoUrl(),
+                    context.faviconUrl(),
+                    context.loginBackgroundUrl());
         }
     }
 

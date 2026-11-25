@@ -9,4 +9,8 @@ import com.gis.warplan.domain.Scenario;
 public interface ScenarioRepository extends JpaRepository<Scenario, Long> {
 
     List<Scenario> findByActiveTrue();
+
+    boolean existsByAttachmentAssetId(Long attachmentAssetId);
+
+    List<Scenario> findByAttachedFileIsNotNullAndAttachmentAssetIdIsNull();
 }

@@ -39,10 +39,11 @@ public class AuthService {
     private final ActivationService activation;
     private final UserService userService;
     private final WarplanProperties properties;
+    private final AssetService pictures;
 
     public AuthService(AppUserRepository users, UserSessionRepository sessions, ThemeAllotmentService allotment,
             PasswordEncoder passwordEncoder, JwtService jwtService, AccessService access, AuditService audit,
-            ActivationService activation, UserService userService, WarplanProperties properties) {
+            ActivationService activation, UserService userService, WarplanProperties properties, AssetService pictures) {
         this.users = users;
         this.sessions = sessions;
         this.allotment = allotment;
@@ -53,6 +54,7 @@ public class AuthService {
         this.activation = activation;
         this.userService = userService;
         this.properties = properties;
+        this.pictures = pictures;
     }
 
     @Transactional(readOnly = true)
@@ -67,7 +69,10 @@ public class AuthService {
                 .toList();
         String name = properties.getApplicationName();
         log.info("login_context.served users={} themeId={}", activeUsers.size(), theme.getId());
-        return new LoginContext(name, name, activeUsers, theme);
+        return new LoginContext(name, name, activeUsers, theme,
+                pictures.applicationUrl(com.gis.warplan.domain.ApplicationSlot.LOGO),
+                pictures.applicationUrl(com.gis.warplan.domain.ApplicationSlot.FAVICON),
+                pictures.applicationUrl(com.gis.warplan.domain.ApplicationSlot.LOGIN_BACKGROUND));
     }
 
     @Transactional
@@ -139,7 +144,9 @@ public class AuthService {
                 user.getPlayingNodeId(),
                 state.canWork(),
                 state.reason(),
-                properties.getApplicationName());
+                properties.getApplicationName(),
+                pictures.applicationUrl(com.gis.warplan.domain.ApplicationSlot.LOGO),
+                pictures.applicationUrl(com.gis.warplan.domain.ApplicationSlot.FAVICON));
     }
 
     public record LoginResult(String token, Instant expiresAt, MeResponse me) {
@@ -148,7 +155,8 @@ public class AuthService {
     public record LoginUser(Long id, String name) {
     }
 
-    public record LoginContext(String applicationName, String exerciseTitle, List<LoginUser> activeUsers, Theme loginTheme) {
+    public record LoginContext(String applicationName, String exerciseTitle, List<LoginUser> activeUsers, Theme loginTheme,
+            String logoUrl, String faviconUrl, String loginBackgroundUrl) {
     }
 
     public record MeResponse(
@@ -164,6 +172,8 @@ public class AuthService {
             String playingNodeId,
             boolean canWork,
             String workBlockedReason,
-            String applicationName) {
+            String applicationName,
+            String logoUrl,
+            String faviconUrl) {
     }
 }

@@ -26,17 +26,25 @@ public class AssetManagement {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Base icon folder every icon call is resolved against. Default: the configured {@code warplan.icons.root}. */
+    /** Base asset folder. Default: {@code asset-repository}. May point at another disk on this server. */
     @Column(nullable = false, length = 500)
     private String path;
 
     /**
-     * Per-user icon labels: outer key is the user id, inner map is that user's label per icon relative path
-     * (e.g. {@code {"7": {"circle.svg": "HQ"}}}). Stored as a lenient {@code Map<String, Object>} so an older
-     * flat (shared) labels value still deserializes; such legacy entries are ignored.
+     * Public labels kept for the one-time flatten of the old per-user map. The live label is {@code asset.label}.
+     * A nested value means the old shape (user id to path to label) and is flattened on startup.
      */
     @JdbcTypeCode(SqlTypes.JSON)
     private Map<String, Object> labels = new LinkedHashMap<>();
+
+    /** Null uses the built-in default (512 KB). */
+    private Long iconMaxBytes;
+
+    /** Null uses the built-in default (10 MB). */
+    private Long imageMaxBytes;
+
+    /** Null uses the built-in default (50 MB). */
+    private Long documentMaxBytes;
 
     /** When the row was last changed (exposed to clients as an epoch). */
     @Column(nullable = false)

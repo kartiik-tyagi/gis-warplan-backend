@@ -17,4 +17,6 @@ public interface SideRepository extends JpaRepository<Side, Long> {
     long countByThemeId(Long themeId);
 
     List<Side> findByThemeId(Long themeId);
+
+    boolean existsByIcon(String icon);
 }

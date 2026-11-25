@@ -72,6 +72,53 @@ public class AssetManagementService {
         return saved;
     }
 
+    /**
+     * Turns a leftover per-user label map into one public label per path.
+     * The lowest user id is kept when several people named the same file.
+     */
+    @Transactional
+    public Map<String, String> flattenLabels() {
+        AssetManagement row = loadForUpdate();
+        Map<String, Object> raw = row.getLabels();
+        boolean nested = raw != null && raw.values().stream().anyMatch(value -> value instanceof Map<?, ?>);
+        Map<String, String> flat = AssetService.flattenLabels(raw);
+        if (nested) {
+            row.setLabels(new LinkedHashMap<>(flat));
+            stamp(row);
+            repository.save(row);
+            log.info("asset.labels_flattened count={}", flat.size());
+        }
+        return flat;
+    }
+
+    @Transactional
+    public AssetManagement updateLimits(Long iconMaxBytes, Long imageMaxBytes, Long documentMaxBytes) {
+        AssetManagement row = loadForUpdate();
+        row.setIconMaxBytes(checkLimit(iconMaxBytes, "Icon"));
+        row.setImageMaxBytes(checkLimit(imageMaxBytes, "Image"));
+        row.setDocumentMaxBytes(checkLimit(documentMaxBytes, "Document"));
+        stamp(row);
+        AssetManagement saved = repository.save(row);
+        log.info("asset.limits_updated icon={} image={} document={}", saved.getIconMaxBytes(), saved.getImageMaxBytes(),
+                saved.getDocumentMaxBytes());
+        Map<String, Object> detail = new LinkedHashMap<>();
+        detail.put("iconMaxBytes", saved.getIconMaxBytes());
+        detail.put("imageMaxBytes", saved.getImageMaxBytes());
+        detail.put("documentMaxBytes", saved.getDocumentMaxBytes());
+        audit.record("UPDATE", "AssetManagement", saved.getId(), "Asset size limits updated", detail);
+        return saved;
+    }
+
+    private static Long checkLimit(Long value, String name) {
+        if (value == null || value < 1) {
+            throw new BadRequestException(name + " size limit is required.");
+        }
+        if (value > AssetService.CEILING) {
+            throw new BadRequestException(name + " size limit cannot be larger than " + AssetService.humanSize(AssetService.CEILING) + ".");
+        }
+        return value;
+    }
+
     /** The base icon folder, never blank. */
     @Transactional
     public String path() {

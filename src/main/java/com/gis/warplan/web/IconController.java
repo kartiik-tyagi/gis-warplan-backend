@@ -18,7 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.gis.warplan.domain.FunctionalityCodes;
 import com.gis.warplan.service.AccessService;
-import com.gis.warplan.service.AssetManagementService;
+import com.gis.warplan.service.AssetService;
 import com.gis.warplan.service.AuditService;
 import com.gis.warplan.service.IconService;
 import com.gis.warplan.service.IconService.IconContent;
@@ -34,13 +34,13 @@ import jakarta.validation.constraints.Size;
 public class IconController {
 
     private final IconService icons;
-    private final AssetManagementService assets;
+    private final AssetService store;
     private final AccessService access;
     private final AuditService audit;
 
-    public IconController(IconService icons, AssetManagementService assets, AccessService access, AuditService audit) {
+    public IconController(IconService icons, AssetService store, AccessService access, AuditService audit) {
         this.icons = icons;
-        this.assets = assets;
+        this.store = store;
         this.access = access;
         this.audit = audit;
     }
@@ -91,7 +91,7 @@ public class IconController {
 
     private void rememberLabel(String path, String label) {
         if (label != null && !label.isBlank()) {
-            assets.setLabel(path, label);
+            store.setLabelByKey(path, label);
         }
     }
 

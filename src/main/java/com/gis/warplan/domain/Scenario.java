@@ -34,8 +34,11 @@ public class Scenario {
     @Column(nullable = false, columnDefinition = "boolean default false")
     private boolean active;
 
+    /** Display name of the attached asset. The bytes live in the asset store. */
     @Column(length = 500)
     private String attachedFile;
+
+    private Long attachmentAssetId;
 
     @Column(nullable = false)
     private Instant createdAt;

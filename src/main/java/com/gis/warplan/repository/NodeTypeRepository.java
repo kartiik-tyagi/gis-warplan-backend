@@ -9,4 +9,6 @@ import com.gis.warplan.domain.NodeType;
 public interface NodeTypeRepository extends JpaRepository<NodeType, Long> {
 
     Optional<NodeType> findByCode(String code);
+
+    boolean existsByIconPath(String iconPath);
 }
