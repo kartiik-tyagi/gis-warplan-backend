@@ -58,10 +58,10 @@ class DomainFoundationTest {
         seedRunner.run(null);
         assertThat(functionalities.count()).isEqualTo(FunctionalityCodes.ALL.size());
         assertThat(roles.count()).isEqualTo(4);
-        assertThat(themes.count()).isEqualTo(20);
-        assertThat(themes.findByName("Pine, night")).isPresent();
+        assertThat(themes.count()).isEqualTo(17);
+        assertThat(themes.findByName("Blue")).isPresent();
         assertThat(themes.findFirstByDefaultThemeTrueOrderByIdAsc()).isPresent();
-        assertThat(themes.findFirstByDefaultThemeTrueOrderByIdAsc().orElseThrow().getName()).isEqualTo("Pine, night");
+        assertThat(themes.findFirstByDefaultThemeTrueOrderByIdAsc().orElseThrow().getName()).isEqualTo("Blue");
         assertThat(users.findByName("APEX")).isPresent();
         RoleEntity admin = roles.findByCode(RoleCodes.ADMINISTRATOR).orElseThrow();
         assertThat(admin.getFunctionalityIds()).hasSize(FunctionalityCodes.ALL.size());

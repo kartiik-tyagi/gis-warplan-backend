@@ -126,7 +126,20 @@ public class IconService {
         for (com.gis.warplan.domain.Asset asset : store.list(com.gis.warplan.domain.AssetKind.ICON)) {
             place(root, asset.getStorageKey(), asset.displayName());
         }
+        sortChildren(root);
         return root;
+    }
+
+    private void sortChildren(IconNode node) {
+        if (node.children() == null || node.children().isEmpty()) {
+            return;
+        }
+        node.children().sort(Comparator
+                .comparing((IconNode child) -> !"directory".equals(child.kind()))
+                .thenComparing(IconNode::name, String.CASE_INSENSITIVE_ORDER));
+        for (IconNode child : node.children()) {
+            sortChildren(child);
+        }
     }
 
     public IconContent read(String relativePath) {

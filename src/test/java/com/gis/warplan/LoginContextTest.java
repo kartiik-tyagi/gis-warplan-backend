@@ -54,9 +54,9 @@ class LoginContextTest {
 
         Map theme = (Map) body.get("loginTheme");
         assertThat(theme.get("defaultTheme")).isEqualTo(true);
-        assertThat(theme.get("name")).isEqualTo("Pine, night");
+        assertThat(theme.get("name")).isEqualTo("Blue");
         Map config = (Map) theme.get("configJson");
-        assertThat(config.get("paletteId")).isEqualTo("field-night");
+        assertThat(config.get("paletteId")).isEqualTo("blue");
         assertThat(config.get("primary")).isNotNull();
     }
 }

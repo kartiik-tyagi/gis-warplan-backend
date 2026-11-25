@@ -58,7 +58,7 @@ public class SideService {
 
     @Transactional(readOnly = true)
     public List<Side> list() {
-        return sides.findAll(Sort.by("id"));
+        return sides.findAll(Sort.by(Sort.Order.asc("name").ignoreCase()));
     }
 
     @Transactional(readOnly = true)

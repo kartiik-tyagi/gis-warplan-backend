@@ -22,7 +22,8 @@ Do not invent substitute fields (`description` / `configJson` / `status` on scen
 | audit_log | Audit | id, occurred_at, actor_user_id, session_id, action, entity_type, entity_id, summary, detail_json, ip_address, user_agent, request_id |
 | asset_management | Config | id, path (base folder, default asset-repository), labels (legacy JSON, flattened once to a public path → label map), icon_max_bytes, image_max_bytes, document_max_bytes, last_updated, updated_by — **single row** |
 | asset | Working | id, kind (ICON\|IMAGE\|DOCUMENT\|APPLICATION), slot (LOGO\|FAVICON\|LOGIN_BACKGROUND or null), storage_key, original_name, label (one public name, null falls back to the file name), media_type, size_bytes, created_by, created_at, updated_at |
-| gis_server / map_layer / map_view_defaults | Map | unchanged |
+| gis_server / map_layer | Map | unchanged |
+| map_view_defaults | Map | centre, zoom, data_crs, view_crs, elevation_layer_id, elevation_attribute, elevation_positive_up |
 
 ## Logic rules
 

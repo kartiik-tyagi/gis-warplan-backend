@@ -37,6 +37,25 @@ public class MapViewDefaults {
 
     private Long defaultGisServerId;
 
+    /** Geographic CRS of the pointer. The map can use EPSG:4326 or EPSG:3857. */
+    @Column(length = 32)
+    private String dataCrs = "EPSG:4326";
+
+    /** CRS the map is drawn in. */
+    @Column(length = 32)
+    private String viewCrs = "EPSG:3857";
+
+    /** Catalog layer queried for land height and ocean depth. Empty means the footer shows no value. */
+    private Long elevationLayerId;
+
+    /** Feature property that holds the number. Empty means the first numeric property. */
+    @Column(length = 80)
+    private String elevationAttribute;
+
+    /** True when a positive value is land height and a negative value is ocean depth. */
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean elevationPositiveUp = true;
+
     @Column(nullable = false)
     private Instant createdAt;
 

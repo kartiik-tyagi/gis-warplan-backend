@@ -19,6 +19,8 @@ public interface AppUserRepository extends JpaRepository<AppUser, Long> {
 
     List<AppUser> findByStandardOrbatId(Long standardOrbatId);
 
+    List<AppUser> findByStandardOrbatIdOrderByNameAsc(Long standardOrbatId);
+
     Optional<AppUser> findByStandardOrbatIdAndStandardNodeId(Long standardOrbatId, String standardNodeId);
 
     List<AppUser> findByThemeId(Long themeId);

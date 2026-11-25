@@ -47,7 +47,7 @@ public class NodeTypeService {
 
     @Transactional(readOnly = true)
     public List<NodeType> list() {
-        return nodeTypes.findAll(Sort.by("id"));
+        return nodeTypes.findAll(Sort.by(Sort.Order.asc("name").ignoreCase()));
     }
 
     @Transactional(readOnly = true)

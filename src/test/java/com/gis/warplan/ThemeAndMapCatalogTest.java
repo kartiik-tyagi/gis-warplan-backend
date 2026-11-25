@@ -34,22 +34,25 @@ class ThemeAndMapCatalogTest {
         ResponseEntity<List> listed = callList(token, "/api/v1/themes");
         assertThat(listed.getStatusCode()).isEqualTo(HttpStatus.OK);
         List<Map> themes = listed.getBody();
-        assertThat(themes).hasSizeGreaterThanOrEqualTo(20);
-        Map pine = themes.stream().filter(row -> "Pine, night".equals(row.get("name"))).findFirst().orElseThrow();
-        assertThat(pine.get("defaultTheme")).isEqualTo(true);
-        Map config = (Map) pine.get("configJson");
-        assertThat(config.get("paletteId")).isEqualTo("field-night");
-        assertThat(config.get("primary")).isEqualTo("#3ddea0");
+        assertThat(themes).hasSizeGreaterThanOrEqualTo(17);
+        List<String> names = themes.stream().map(row -> (String) row.get("name")).toList();
+        assertThat(names).contains("Black", "White", "Blue");
+        assertThat(names).isSortedAccordingTo(String.CASE_INSENSITIVE_ORDER);
+        Map blue = themes.stream().filter(row -> "Blue".equals(row.get("name"))).findFirst().orElseThrow();
+        assertThat(blue.get("defaultTheme")).isEqualTo(true);
+        Map config = (Map) blue.get("configJson");
+        assertThat(config.get("paletteId")).isEqualTo("blue");
+        assertThat(config.get("primary")).isEqualTo("#60a5fa");
         assertThat(config.get("mode")).isEqualTo("dark");
 
-        Long pineId = ((Number) pine.get("id")).longValue();
-        ResponseEntity<Object> updated = call(token, HttpMethod.PUT, "/api/v1/themes/" + pineId,
-                Map.of("name", "Pine, night", "description", "user edited", "defaultTheme", true,
-                        "configJson", Map.of("paletteId", "field-night", "mode", "dark", "primary", "#00ff00")));
+        Long blueId = ((Number) blue.get("id")).longValue();
+        ResponseEntity<Object> updated = call(token, HttpMethod.PUT, "/api/v1/themes/" + blueId,
+                Map.of("name", "Blue", "description", "user edited", "defaultTheme", true,
+                        "configJson", Map.of("paletteId", "blue", "mode", "dark", "primary", "#00ff00")));
         assertThat(updated.getStatusCode()).isEqualTo(HttpStatus.OK);
 
         // Restart seed path is not re-run mid-test; assert the user edit stuck on read.
-        ResponseEntity<Object> got = call(token, HttpMethod.GET, "/api/v1/themes/" + pineId, null);
+        ResponseEntity<Object> got = call(token, HttpMethod.GET, "/api/v1/themes/" + blueId, null);
         assertThat(got.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map body = (Map) got.getBody();
         assertThat(body.get("description")).isEqualTo("user edited");

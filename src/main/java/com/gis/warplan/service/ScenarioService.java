@@ -70,7 +70,7 @@ public class ScenarioService {
     @Transactional(readOnly = true)
     public List<Scenario> listScenarios() {
         access.requireFunctionality(FunctionalityCodes.MANAGE_SCENARIO);
-        return scenarios.findAll(Sort.by("id"));
+        return scenarios.findAll(Sort.by(Sort.Order.asc("name").ignoreCase()));
     }
 
     @Transactional(readOnly = true)
@@ -180,7 +180,7 @@ public class ScenarioService {
     public List<Game> listGames(Long scenarioId) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_GAME);
         findScenario(scenarioId);
-        return games.findByScenarioId(scenarioId);
+        return games.findByScenarioIdOrderByNameAsc(scenarioId);
     }
 
     @Transactional(readOnly = true)

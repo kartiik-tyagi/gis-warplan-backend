@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.gis.warplan.domain.FunctionalityCodes;
@@ -21,6 +22,7 @@ import com.gis.warplan.domain.MapLayer;
 import com.gis.warplan.domain.MapViewDefaults;
 import com.gis.warplan.service.AccessService;
 import com.gis.warplan.service.MapCatalogService;
+import com.gis.warplan.service.MapElevationService;
 import com.gis.warplan.service.MapCatalogService.MapConfigSnapshot;
 
 import jakarta.validation.Valid;
@@ -37,10 +39,12 @@ import jakarta.validation.constraints.Size;
 public class MapController {
 
     private final MapCatalogService catalog;
+    private final MapElevationService elevation;
     private final AccessService access;
 
-    public MapController(MapCatalogService catalog, AccessService access) {
+    public MapController(MapCatalogService catalog, MapElevationService elevation, AccessService access) {
         this.catalog = catalog;
+        this.elevation = elevation;
         this.access = access;
     }
 
@@ -111,6 +115,13 @@ public class MapController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/elevation")
+    public ElevationResponse elevation(@RequestParam("latitude") double latitude, @RequestParam("longitude") double longitude) {
+        access.requireFunctionality(FunctionalityCodes.MAP_VIEW);
+        MapElevationService.Sample sample = elevation.read(latitude, longitude);
+        return new ElevationResponse(sample.meters(), sample.kind());
+    }
+
     @GetMapping("/view-defaults")
     public MapViewDefaultsResponse getViewDefaults() {
         access.requireFunctionality(FunctionalityCodes.MANAGE_MAP);
@@ -121,7 +132,8 @@ public class MapController {
     public MapViewDefaultsResponse updateViewDefaults(@Valid @RequestBody MapViewDefaultsRequest request) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_MAP);
         return MapViewDefaultsResponse.of(catalog.updateViewDefaults(request.centerLon(), request.centerLat(),
-                request.zoom(), request.minZoom(), request.maxZoom(), request.defaultGisServerId()));
+                request.zoom(), request.minZoom(), request.maxZoom(), request.defaultGisServerId(), request.dataCrs(),
+                request.viewCrs(), request.elevationLayerId(), request.elevationAttribute(), request.elevationPositiveUp()));
     }
 
     public record GisServerRequest(
@@ -160,7 +172,15 @@ public class MapController {
             Integer zoom,
             Integer minZoom,
             Integer maxZoom,
-            Long defaultGisServerId) {
+            Long defaultGisServerId,
+            @Size(max = 32) String dataCrs,
+            @Size(max = 32) String viewCrs,
+            Long elevationLayerId,
+            @Size(max = 80) String elevationAttribute,
+            Boolean elevationPositiveUp) {
+    }
+
+    public record ElevationResponse(Double meters, String kind) {
     }
 
     public record MapConfigResponse(GisServerPublic server, List<MapLayerResponse> layers, MapViewDefaultsResponse view) {
@@ -204,11 +224,15 @@ public class MapController {
     }
 
     public record MapViewDefaultsResponse(Long id, double centerLon, double centerLat, int zoom, int minZoom,
-            int maxZoom, Long defaultGisServerId, Instant createdAt, Instant updatedAt) {
+            int maxZoom, Long defaultGisServerId, String dataCrs, String viewCrs, Long elevationLayerId,
+            String elevationAttribute, boolean elevationPositiveUp, Instant createdAt, Instant updatedAt) {
         static MapViewDefaultsResponse of(MapViewDefaults view) {
             return new MapViewDefaultsResponse(view.getId(), view.getCenterLon(), view.getCenterLat(), view.getZoom(),
-                    view.getMinZoom(), view.getMaxZoom(), view.getDefaultGisServerId(), view.getCreatedAt(),
-                    view.getUpdatedAt());
+                    view.getMinZoom(), view.getMaxZoom(), view.getDefaultGisServerId(),
+                    view.getDataCrs() == null || view.getDataCrs().isBlank() ? "EPSG:4326" : view.getDataCrs(),
+                    view.getViewCrs() == null || view.getViewCrs().isBlank() ? "EPSG:3857" : view.getViewCrs(),
+                    view.getElevationLayerId(), view.getElevationAttribute(), view.isElevationPositiveUp(),
+                    view.getCreatedAt(), view.getUpdatedAt());
         }
     }
 }

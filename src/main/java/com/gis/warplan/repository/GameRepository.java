@@ -10,5 +10,7 @@ public interface GameRepository extends JpaRepository<Game, Long> {
 
     List<Game> findByScenarioId(Long scenarioId);
 
+    List<Game> findByScenarioIdOrderByNameAsc(Long scenarioId);
+
     List<Game> findByActiveTrue();
 }

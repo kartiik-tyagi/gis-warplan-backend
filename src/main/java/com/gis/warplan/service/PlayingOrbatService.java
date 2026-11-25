@@ -74,7 +74,7 @@ public class PlayingOrbatService {
     public List<PlayingOrbat> list(Long gameId) {
         access.requireAnyFunctionality(FunctionalityCodes.MANAGE_PLAYING_ORBAT, FunctionalityCodes.MANAGE_ALLIANCE);
         requireGame(gameId);
-        return playingOrbats.findByGameId(gameId);
+        return playingOrbats.findByGameIdOrderByNameAsc(gameId);
     }
 
     /** Readable by ORBAT managers and by the users the ORBAT is assigned to. */
@@ -262,7 +262,7 @@ public class PlayingOrbatService {
         access.requireAnyFunctionality(FunctionalityCodes.MANAGE_ALLIANCE, FunctionalityCodes.MANAGE_PLAYING_ORBAT);
         requireGame(gameId);
         List<Alliance> result = new ArrayList<>();
-        for (PlayingOrbat orbat : playingOrbats.findByGameId(gameId)) {
+        for (PlayingOrbat orbat : playingOrbats.findByGameIdOrderByNameAsc(gameId)) {
             Side side = orbat.getSideId() == null ? null : sides.findById(orbat.getSideId()).orElse(null);
             if (side != null && SideService.KIND_ALLIANCE.equals(side.getKind())) {
                 List<Long> memberIds = allianceMembers.findByAllianceSideId(side.getId()).stream()
@@ -270,6 +270,8 @@ public class PlayingOrbatService {
                 result.add(new Alliance(side, memberIds, orbat));
             }
         }
+        result.sort(java.util.Comparator.comparing((Alliance alliance) -> alliance.side().getName(),
+                String.CASE_INSENSITIVE_ORDER));
         return result;
     }
 

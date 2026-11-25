@@ -17,5 +17,7 @@ public interface GisServerRepository extends JpaRepository<GisServer, Long> {
 
     List<GisServer> findAllByOrderByIdAsc();
 
+    List<GisServer> findAllByOrderByNameAsc();
+
     long countByDefaultServerTrue();
 }

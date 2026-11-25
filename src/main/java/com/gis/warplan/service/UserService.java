@@ -69,7 +69,7 @@ public class UserService {
     public List<AppUser> list() {
         access.requireFunctionality(FunctionalityCodes.MANAGE_USERS);
         Visibility visibility = visibility();
-        List<AppUser> visible = users.findAll(Sort.by("id")).stream().filter(visibility::sees).toList();
+        List<AppUser> visible = users.findAll(Sort.by(Sort.Order.asc("name").ignoreCase())).stream().filter(visibility::sees).toList();
         visible.forEach(this::ensureMarkedSide);
         return visible;
     }
@@ -284,7 +284,7 @@ public class UserService {
     @Transactional(readOnly = true)
     public List<AppUser> listMarked(Long standardOrbatId) {
         markedOrbat(standardOrbatId);
-        return users.findByStandardOrbatId(standardOrbatId);
+        return users.findByStandardOrbatIdOrderByNameAsc(standardOrbatId);
     }
 
     @Transactional(readOnly = true)

@@ -45,7 +45,7 @@ public class MapCatalogService {
 
     @Transactional(readOnly = true)
     public List<GisServer> listServers() {
-        return servers.findAllByOrderByIdAsc();
+        return servers.findAllByOrderByNameAsc();
     }
 
     @Transactional(readOnly = true)
@@ -151,10 +151,14 @@ public class MapCatalogService {
 
     @Transactional
     public MapViewDefaults updateViewDefaults(Double centerLon, Double centerLat, Integer zoom, Integer minZoom,
-            Integer maxZoom, Long defaultGisServerId) {
+            Integer maxZoom, Long defaultGisServerId, String dataCrs, String viewCrs, Long elevationLayerId,
+            String elevationAttribute, Boolean elevationPositiveUp) {
         MapViewDefaults view = views.findFirstByOrderByIdAsc().orElseGet(MapViewDefaults::new);
         if (defaultGisServerId != null) {
             requireServer(defaultGisServerId);
+        }
+        if (elevationLayerId != null) {
+            getLayer(elevationLayerId);
         }
         view.setBasemapSource("wms");
         view.setCenterLon(centerLon == null ? view.getCenterLon() : centerLon);
@@ -163,6 +167,13 @@ public class MapCatalogService {
         view.setMinZoom(minZoom == null ? (view.getId() == null ? 3 : view.getMinZoom()) : minZoom);
         view.setMaxZoom(maxZoom == null ? (view.getId() == null ? 12 : view.getMaxZoom()) : maxZoom);
         view.setDefaultGisServerId(defaultGisServerId);
+        view.setDataCrs(normalizeCrs(dataCrs, view.getDataCrs(), "EPSG:4326"));
+        view.setViewCrs(normalizeCrs(viewCrs, view.getViewCrs(), "EPSG:3857"));
+        view.setElevationLayerId(elevationLayerId);
+        view.setElevationAttribute(blankToNull(elevationAttribute));
+        if (elevationPositiveUp != null) {
+            view.setElevationPositiveUp(elevationPositiveUp);
+        }
         if (view.getId() == null && (centerLon == null || centerLat == null)) {
             throw new BadRequestException("Center longitude and latitude are required.");
         }
@@ -240,6 +251,14 @@ public class MapCatalogService {
         if (id == null || !servers.existsById(id)) {
             throw new BadRequestException("GIS server " + id + " does not exist.");
         }
+    }
+
+    private static String normalizeCrs(String requested, String current, String fallback) {
+        String value = requested == null || requested.isBlank() ? (current == null || current.isBlank() ? fallback : current) : requested.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!value.equals("EPSG:4326") && !value.equals("EPSG:3857")) {
+            throw new BadRequestException("The map can use EPSG:4326 or EPSG:3857.");
+        }
+        return value;
     }
 
     private static String requireCode(String code) {

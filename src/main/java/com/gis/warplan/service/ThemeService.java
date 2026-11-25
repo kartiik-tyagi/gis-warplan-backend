@@ -36,7 +36,7 @@ public class ThemeService {
 
     @Transactional(readOnly = true)
     public List<Theme> list() {
-        return themes.findAll(Sort.by("id"));
+        return themes.findAll(Sort.by(Sort.Order.asc("name").ignoreCase()));
     }
 
     @Transactional(readOnly = true)

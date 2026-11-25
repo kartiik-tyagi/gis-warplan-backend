@@ -41,9 +41,22 @@ import com.gis.warplan.service.MapCatalogSeedService;
 public class DomainSeedRunner implements ApplicationRunner {
 
     static final String LEGACY_DEFAULT_THEME = "Default";
-    static final String PINE_NIGHT = "Pine, night";
+    static final String DEFAULT_THEME_NAME = "Blue";
     static final String APEX_USER = "APEX";
     static final String APEX_PASSWORD = "123";
+
+    /** Pre-VIBGYOR catalog names. Unused rows are removed so the seed catalog can replace them. */
+    private static final java.util.Set<String> LEGACY_CATALOG_THEMES = java.util.Set.of(
+            "Pine, night", "Pine, day",
+            "Amber, night", "Amber, day",
+            "Cobalt, night", "Cobalt, day",
+            "Copper, night", "Copper, day",
+            "Crimson, night", "Crimson, day",
+            "Graphite, night", "Graphite, day",
+            "High contrast, night", "High contrast, day",
+            "Iris, night", "Iris, day",
+            "Lagoon, night", "Lagoon, day",
+            "Moss, night", "Moss, day");
 
     private static final Logger log = LogManager.getLogger(DomainSeedRunner.class);
 
@@ -129,22 +142,46 @@ public class DomainSeedRunner implements ApplicationRunner {
             log.info("Seeded theme {}", seed.name());
         }
 
-        if (themes.findFirstByDefaultThemeTrueOrderByIdAsc().isEmpty()) {
-            themes.findByName(PINE_NIGHT).ifPresent(pine -> {
-                pine.setDefaultTheme(true);
-                themes.save(pine);
-                log.info("Marked {} as default theme", PINE_NIGHT);
-            });
-        }
-
-        themes.findByName(LEGACY_DEFAULT_THEME).ifPresent(legacy -> {
-            if (legacy.isDefaultTheme()) {
-                return;
+        themes.findByName(DEFAULT_THEME_NAME).ifPresent(blue -> {
+            Theme currentDefault = themes.findFirstByDefaultThemeTrueOrderByIdAsc().orElse(null);
+            boolean legacyDefault = currentDefault != null && (LEGACY_CATALOG_THEMES.contains(currentDefault.getName())
+                    || LEGACY_DEFAULT_THEME.equals(currentDefault.getName()));
+            if (currentDefault == null || legacyDefault) {
+                if (currentDefault != null && !currentDefault.getId().equals(blue.getId())) {
+                    currentDefault.setDefaultTheme(false);
+                    themes.save(currentDefault);
+                }
+                if (!blue.isDefaultTheme()) {
+                    blue.setDefaultTheme(true);
+                    themes.save(blue);
+                    log.info("Marked {} as default theme", DEFAULT_THEME_NAME);
+                }
             }
+            users.findByName(APEX_USER).ifPresent(apex -> {
+                if (apex.getThemeId() == null) {
+                    return;
+                }
+                Theme held = themes.findById(apex.getThemeId()).orElse(null);
+                if (held != null && LEGACY_CATALOG_THEMES.contains(held.getName())) {
+                    apex.setThemeId(blue.getId());
+                    users.save(apex);
+                    log.info("Moved APEX from legacy theme {} to {}", held.getName(), DEFAULT_THEME_NAME);
+                }
+            });
+        });
+
+        removeUnusedLegacyTheme(LEGACY_DEFAULT_THEME);
+        for (String name : LEGACY_CATALOG_THEMES) {
+            removeUnusedLegacyTheme(name);
+        }
+    }
+
+    private void removeUnusedLegacyTheme(String name) {
+        themes.findByName(name).ifPresent(legacy -> {
             Long id = legacy.getId();
             if (users.countByThemeId(id) == 0 && sides.countByThemeId(id) == 0) {
                 themes.delete(legacy);
-                log.info("Removed unused legacy theme {}", LEGACY_DEFAULT_THEME);
+                log.info("Removed unused legacy theme {}", name);
             }
         });
     }

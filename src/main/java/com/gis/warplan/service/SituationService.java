@@ -55,7 +55,8 @@ public class SituationService {
             return new Picture(null, List.of());
         }
         List<PlayingOrbat> visible = new ArrayList<>(visibleOrbats(game.get().getId()));
-        visible.sort(Comparator.comparing(PlayingOrbat::getId));
+        visible.sort(Comparator.comparing(PlayingOrbat::getName, String.CASE_INSENSITIVE_ORDER)
+                .thenComparing(PlayingOrbat::getId));
         return new Picture(game.get().getId(), views(visible));
     }
 

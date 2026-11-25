@@ -15,5 +15,7 @@ public interface PlayingOrbatRepository extends JpaRepository<PlayingOrbat, Long
 
     List<PlayingOrbat> findByGameId(Long gameId);
 
+    List<PlayingOrbat> findByGameIdOrderByNameAsc(Long gameId);
+
     Optional<PlayingOrbat> findFirstByGameIdAndSideId(Long gameId, Long sideId);
 }

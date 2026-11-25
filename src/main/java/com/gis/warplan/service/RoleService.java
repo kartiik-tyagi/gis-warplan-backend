@@ -45,12 +45,12 @@ public class RoleService {
 
     @Transactional(readOnly = true)
     public List<Functionality> listFunctionalities() {
-        return functionalities.findAll(Sort.by("id"));
+        return functionalities.findAll(Sort.by(Sort.Order.asc("name").ignoreCase()));
     }
 
     @Transactional(readOnly = true)
     public List<RoleEntity> list() {
-        return roles.findAll(Sort.by("id"));
+        return roles.findAll(Sort.by(Sort.Order.asc("name").ignoreCase()));
     }
 
     @Transactional(readOnly = true)
