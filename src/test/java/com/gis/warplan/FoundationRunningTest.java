@@ -15,6 +15,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 
+import com.gis.warplan.config.WarplanProperties;
+
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles("test")
 class FoundationRunningTest {
@@ -25,6 +27,9 @@ class FoundationRunningTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private WarplanProperties properties;
+
     @Test
     void healthInfoAndSwaggerRespond() {
         ResponseEntity<String> health = rest.getForEntity("/actuator/health", String.class);
@@ -34,7 +39,7 @@ class FoundationRunningTest {
 
         ResponseEntity<String> info = rest.getForEntity("/actuator/info", String.class);
         assertThat(info.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(info.getBody()).contains("JAYANT");
+        assertThat(info.getBody()).contains(properties.getApplicationName());
 
         ResponseEntity<String> swagger = rest.getForEntity("/swagger-ui.html", String.class);
         assertThat(swagger.getStatusCode()).isEqualTo(HttpStatus.OK);

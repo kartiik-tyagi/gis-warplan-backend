@@ -8,8 +8,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "warplan")
 public class WarplanProperties {
 
-    /** Product display name. Change this value (or warplan.application-name) to rename the app everywhere. */
-    private String applicationName = "JAYANT";
+    /**
+     * Display title used only when {@code warplan.application-name} is missing.
+     * The setting in application.yml is the title to change.
+     */
+    private String applicationName = "CBSMD";
     private String apiBasePath = "/api/v1";
     private List<String> corsOrigins = new ArrayList<>(List.of("http://127.0.0.1:5173"));
     private final Db db = new Db();
@@ -22,7 +25,7 @@ public class WarplanProperties {
     }
 
     public void setApplicationName(String applicationName) {
-        this.applicationName = applicationName == null || applicationName.isBlank() ? "JAYANT" : applicationName.trim();
+        this.applicationName = applicationName == null || applicationName.isBlank() ? "CBSMD" : applicationName.trim();
     }
 
     public String getApiBasePath() {

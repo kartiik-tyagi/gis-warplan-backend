@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 
+import com.gis.warplan.config.WarplanProperties;
 import com.gis.warplan.domain.AppUser;
 import com.gis.warplan.repository.AppUserRepository;
 
@@ -29,6 +30,8 @@ class LoginContextTest {
     private AppUserRepository users;
     @Autowired
     private PasswordEncoder passwordEncoder;
+    @Autowired
+    private WarplanProperties properties;
 
     @Test
     void loginContextIsPublicAndListsOnlyActiveUsersWithDefaultTheme() {
@@ -41,8 +44,8 @@ class LoginContextTest {
         ResponseEntity<Map> response = rest.getForEntity("/api/v1/auth/login-context", Map.class);
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
         Map body = response.getBody();
-        assertThat(body.get("applicationName")).isEqualTo("JAYANT");
-        assertThat(body.get("exerciseTitle")).isEqualTo("JAYANT");
+        assertThat(body.get("applicationName")).isEqualTo(properties.getApplicationName());
+        assertThat(body.get("exerciseTitle")).isEqualTo(properties.getApplicationName());
 
         List<Map> activeUsers = (List<Map>) body.get("activeUsers");
         assertThat(activeUsers).isNotEmpty();

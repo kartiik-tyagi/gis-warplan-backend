@@ -35,8 +35,9 @@ server:
     include-exception: false
 
 warplan:
-  # Product display name — single source for login context, OpenAPI, and actuator info.
-  application-name: JAYANT
+  # Display title only. Change this line to rename the product in the UI, OpenAPI, and actuator info.
+  # It does not rename the repository, the Java package, the database, or the build artifact.
+  application-name: CBSMD
   api-base-path: /api/v1
   cors-origins:
     - http://127.0.0.1:5173
@@ -67,8 +68,8 @@ management:
 
 info:
   app:
-    name: JAYANT
-    description: JAYANT backend
+    name: ${warplan.application-name}
+    description: ${warplan.application-name}
 
 springdoc:
   api-docs:

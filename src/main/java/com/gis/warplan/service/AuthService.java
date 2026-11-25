@@ -138,7 +138,8 @@ public class AuthService {
                 user.getPlayingOrbatId(),
                 user.getPlayingNodeId(),
                 state.canWork(),
-                state.reason());
+                state.reason(),
+                properties.getApplicationName());
     }
 
     public record LoginResult(String token, Instant expiresAt, MeResponse me) {
@@ -162,6 +163,7 @@ public class AuthService {
             Long playingOrbatId,
             String playingNodeId,
             boolean canWork,
-            String workBlockedReason) {
+            String workBlockedReason,
+            String applicationName) {
     }
 }
