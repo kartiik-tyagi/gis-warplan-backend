@@ -1,0 +1,246 @@
+SEVERAL WAR APPLICATIONS ON ONE TOMCAT
+======================================
+
+Yes. One Tomcat can run GeoServer, GIS Warplan, and other WARs at the same
+time. Each WAR is its own application. They share the JVM and the HTTP port.
+They do not share URLs, classloaders, databases, or configuration files.
+
+This note is only about that. For building GIS Warplan and placing its UI,
+read DEPLOYMENT.txt in this folder.
+
+
+1. How Tomcat treats each WAR
+-----------------------------
+
+Every file or folder under TOMCAT/webapps is one application.
+
+  Name on disk                         Browser address
+  -----------------------------------  ------------------------------------
+  webapps/ROOT/  or  ROOT.war          http://HOST:PORT/
+  webapps/gis-warplan.war              http://HOST:PORT/gis-warplan/
+  webapps/geoserver.war                http://HOST:PORT/geoserver/
+
+The part after the host and port is the context path. It is the WAR file
+name without .war. ROOT is the special name for the empty path /.
+
+Rules that must stay true:
+
+  - Two applications must never use the same context path.
+  - Do not put two products into one WAR.
+  - Do not create a folder named gis-warplan and also drop gis-warplan.war
+    for a different product. Tomcat treats them as one application.
+  - Replacing one WAR does not replace another WAR.
+
+
+2. What they share, and what they keep separate
+-----------------------------------------------
+
+Shared by every application on that Tomcat
+
+  - One JVM (one heap, one JAVA_HOME)
+  - One HTTP Connector port (for example 8080 or 8180)
+  - One shutdown port (default 8005)
+  - Tomcat's own lib/ and conf/server.xml
+
+Separate for each application
+
+  - Context path and URL
+  - Its own WEB-INF classes and libraries
+  - Its own database connections and credentials
+  - Its own data folders (icons, logs, GeoServer data directory)
+  - Its own sessions and security
+
+So GeoServer and GIS Warplan can both be "UP" on the same host and port.
+Opening /geoserver/... does not touch /gis-warplan/..., and the reverse is
+also true.
+
+
+3. Prerequisites for this pattern
+---------------------------------
+
+  - One Tomcat 10.1.x if every WAR needs Jakarta Servlet (GIS Warplan does).
+    GeoServer must also be a build that runs on Tomcat 10.1. A GeoServer
+    built only for Tomcat 9 / javax.servlet will not load on Tomcat 10.1.
+
+  - Enough RAM for both applications in one JVM. Give Tomcat a larger heap
+    in setenv when you run several heavy WARs. Example for Windows:
+
+      set "CATALINA_OPTS=%CATALINA_OPTS% -Xms512m -Xmx2048m"
+
+  - Free HTTP port for that Tomcat. On a machine where another GeoServer
+    already listens on 8080 as its own process, either stop that process
+    or give this Tomcat a different Connector port in conf/server.xml.
+
+  - Separate data directories for each product. Do not point two products
+    at the same icon folder, GeoServer data_dir, or database unless you
+    intend them to share that data.
+
+
+4. Layout on one Tomcat (example)
+---------------------------------
+
+Assume Tomcat listens on port 8180 (because 8080 is already used elsewhere).
+
+  TOMCAT/
+    bin/setenv.bat          (or setenv.sh)
+    conf/server.xml         Connector port="8180"
+    webapps/
+      ROOT/                 optional: GIS Warplan UI (static files)
+      gis-warplan.war       GIS Warplan API
+      geoserver.war         GeoServer
+
+Addresses:
+
+  GIS Warplan UI:     http://HOST:8180/
+  GIS Warplan API:    http://HOST:8180/gis-warplan/api/v1
+  GIS Warplan health: http://HOST:8180/gis-warplan/actuator/health
+  GeoServer:          http://HOST:8180/geoserver/
+
+If GIS Warplan has no UI on this Tomcat, leave ROOT empty or leave the
+default Tomcat welcome page. The API still runs at /gis-warplan/.
+
+If GeoServer has its own web UI, that UI is already inside geoserver.war.
+You do not copy a separate frontend for GeoServer.
+
+
+5. Configure Tomcat once
+------------------------
+
+5.1 HTTP port
+
+  Edit conf/server.xml, Connector port. One number for every WAR on this
+  Tomcat. Example:
+
+    <Connector port="8180" protocol="HTTP/1.1"
+               connectionTimeout="20000"
+               redirectPort="8443"
+               maxParameterCount="1000"
+               />
+
+5.2 setenv for GIS Warplan
+
+  GIS Warplan still needs SPRING_PROFILES_ACTIVE, DB_*, WARPLAN_*, and
+  logging.config as in DEPLOYMENT.txt section 4.
+
+  Those variables apply to the whole JVM. They are fine when other WARs
+  ignore them. Do not put GeoServer's GEOSERVER_DATA_DIR and Warplan's
+  DB_PASSWORD into the same variable name.
+
+5.3 GeoServer data directory (when GeoServer is a WAR on this Tomcat)
+
+  Prefer an absolute folder outside webapps so a redeploy of geoserver.war
+  does not wipe map data. Windows setenv.bat example:
+
+    set "GEOSERVER_DATA_DIR=C:/coraltelecom/geoserver/data_dir"
+    set "JAVA_OPTS=%JAVA_OPTS% -DGEOSERVER_DATA_DIR=%GEOSERVER_DATA_DIR%"
+
+  Create that folder before the first start. Follow GeoServer's own install
+  guide for the exact variable name of the GeoServer version you deploy.
+
+5.4 Memory
+
+  Raise -Xmx when both products run in one Tomcat. If the process is killed
+  under load, the heap is usually too small.
+
+5.5 Start Tomcat once
+
+  set CATALINA_HOME=...
+  set CATALINA_BASE=...
+  bin\startup.bat
+
+  One start loads every WAR under webapps.
+
+
+6. Deploy each WAR without disturbing the others
+------------------------------------------------
+
+GIS Warplan API
+
+  Copy target\gis-warplan.war to webapps\gis-warplan.war
+  Leave geoserver.war and ROOT alone.
+
+GeoServer
+
+  Copy geoserver.war to webapps\geoserver.war
+  Leave gis-warplan.war and ROOT alone.
+
+GIS Warplan UI (optional)
+
+  Copy the frontend dist into webapps\ROOT
+  Edit ROOT\config.js so apiBase is /gis-warplan/api/v1
+  Leave the two WAR files alone.
+
+Never name the UI folder the same as another WAR's context. Never put the
+Warplan UI inside webapps\geoserver.
+
+
+7. Same machine, two Tomcats instead of one
+-------------------------------------------
+
+Use this when you want separate heaps, separate restarts, or when one
+product needs Tomcat 9 and the other needs Tomcat 10.1.
+
+  Tomcat A: GeoServer only. Port 8080. Shutdown 8005.
+  Tomcat B: GIS Warplan only. Port 8180. Shutdown 8006.
+
+Each Tomcat has its own CATALINA_HOME or its own CATALINA_BASE, its own
+setenv, and its own webapps. They do not see each other's WARs.
+
+Addresses:
+
+  GeoServer:       http://HOST:8080/geoserver/
+  GIS Warplan API: http://HOST:8180/gis-warplan/
+  GIS Warplan UI:  http://HOST:8180/   (if you put dist in that Tomcat's ROOT)
+
+This is safer when the two products disagree on Tomcat major version.
+
+
+8. Check that both are independent
+----------------------------------
+
+  http://HOST:PORT/gis-warplan/actuator/health   -> {"status":"UP"}
+  http://HOST:PORT/geoserver/                    -> GeoServer page or redirect
+
+  Stop only by removing or renaming one WAR, or by undeploying one context.
+  The other context must keep answering.
+
+  GIS Warplan logs go to the folder in LOG_BASE (see DEPLOYMENT.txt).
+  GeoServer logs go to its own data_dir or Tomcat logs, not into Warplan's
+  app.log.
+
+
+9. Typical problems
+-------------------
+
+Port already in use
+  Another process (often a standalone GeoServer) already owns 8080.
+  Change this Tomcat's Connector port, or stop the other process.
+
+GeoServer fails on Tomcat 10.1
+  That GeoServer build expects javax.servlet (Tomcat 9). Use a GeoServer
+  build for Tomcat 10 / Jakarta, or put GeoServer on its own Tomcat 9 and
+  Warplan on Tomcat 10.1 (section 7).
+
+One WAR disappears when the other is updated
+  The two products were given the same context path. Rename one WAR.
+
+Warplan login page is GeoServer, or GeoServer URL shows Warplan JSON
+  The browser opened the wrong context path. Use /geoserver for GeoServer
+  and /gis-warplan for the Warplan API. The Warplan UI, when used, is /
+  only if it was copied to ROOT.
+
+Out of memory
+  Raise CATALINA_OPTS -Xmx. Two large WARs need more heap than one.
+
+
+10. Short answer
+----------------
+
+Yes. Put geoserver.war and gis-warplan.war side by side in the same
+webapps folder, keep different names, keep different data directories, share
+one HTTP port, and start Tomcat once. Each product is then opened on its
+own path and runs without sharing code or configuration with the other.
+
+If one product cannot run on Tomcat 10.1, use two Tomcats on two ports
+instead. That is still one server machine; it is not the same Tomcat
+process.

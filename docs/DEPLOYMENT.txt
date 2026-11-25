@@ -8,6 +8,10 @@ does not replace the UI. Replacing the UI does not replace the API.
 They may run on one Tomcat, on two Tomcats on one machine, on two machines,
 or with Apache httpd serving the UI and Tomcat serving the API.
 
+To run GIS Warplan next to another WAR on the same Tomcat (for example
+GeoServer), and to keep each product independent, read MULTI-APP-TOMCAT.txt
+in this folder.
+
 
 1. What each piece is
 ---------------------
