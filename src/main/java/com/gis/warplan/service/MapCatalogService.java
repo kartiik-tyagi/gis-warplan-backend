@@ -11,6 +11,8 @@ import com.gis.warplan.domain.GisServer;
 import com.gis.warplan.domain.MapLayer;
 import com.gis.warplan.domain.MapViewDefaults;
 import com.gis.warplan.repository.GisServerRepository;
+import com.gis.warplan.repository.MapLayerGroupMemberRepository;
+import com.gis.warplan.repository.MapLayerGroupRepository;
 import com.gis.warplan.repository.MapLayerRepository;
 import com.gis.warplan.repository.MapViewDefaultsRepository;
 import com.gis.warplan.web.BadRequestException;
@@ -24,13 +26,20 @@ public class MapCatalogService {
     private final MapLayerRepository layers;
     private final MapViewDefaultsRepository views;
     private final AuditService audit;
+    private final SecretCryptoService crypto;
+    private final MapLayerGroupRepository layerGroups;
+    private final MapLayerGroupMemberRepository groupMembers;
 
     public MapCatalogService(GisServerRepository servers, MapLayerRepository layers, MapViewDefaultsRepository views,
-            AuditService audit) {
+            AuditService audit, SecretCryptoService crypto, MapLayerGroupRepository layerGroups,
+            MapLayerGroupMemberRepository groupMembers) {
         this.servers = servers;
         this.layers = layers;
         this.views = views;
         this.audit = audit;
+        this.crypto = crypto;
+        this.layerGroups = layerGroups;
+        this.groupMembers = groupMembers;
     }
 
     @Transactional(readOnly = true)
@@ -40,7 +49,26 @@ public class MapCatalogService {
                 .orElse(null);
         MapViewDefaults view = views.findFirstByOrderByIdAsc().orElse(null);
         List<MapLayer> active = layers.findByActiveTrueOrderBySortOrderAscIdAsc();
-        return new MapConfigSnapshot(server, active, view);
+        List<GroupConfig> groups = layerGroups.findByActiveTrueOrderBySortOrderAscIdAsc().stream().map(group -> {
+            List<GroupMemberConfig> members = groupMembers.findByGroupIdOrderBySortOrderAscIdAsc(group.getId()).stream()
+                    .map(member -> {
+                        MapLayer layer = layers.findById(member.getMapLayerId()).orElse(null);
+                        if (layer == null || !layer.isActive()) {
+                            return null;
+                        }
+                        return new GroupMemberConfig(layer.getId(), layer.getCode(), layer.getLabel(),
+                                layer.getWmsLayers(), member.getSortOrder(), member.getStyleName(),
+                                layer.isDefaultVisible(), layer.getDefaultOpacity(), layer.isTransparent(),
+                                layer.isBaseLayer(), layer.getMinZoom(), layer.getMaxZoom());
+                    }).filter(java.util.Objects::nonNull).toList();
+            String wms = group.getGsLayerGroupName();
+            if (wms == null || wms.isBlank()) {
+                wms = members.stream().map(GroupMemberConfig::wmsLayers).reduce((a, b) -> a + "," + b).orElse("");
+            }
+            return new GroupConfig(group.getId(), group.getCode(), group.getLabel(), wms, group.getSortOrder(),
+                    group.isDefaultVisible(), members);
+        }).toList();
+        return new MapConfigSnapshot(server, active, view, groups);
     }
 
     @Transactional(readOnly = true)
@@ -55,13 +83,14 @@ public class MapCatalogService {
 
     @Transactional
     public GisServer createServer(String code, String name, String wmsUrl, String wfsUrl, String restUrl,
-            String workspaceDefault, Boolean enabled, Boolean defaultServer) {
+            String workspaceDefault, Boolean enabled, Boolean defaultServer, String restUsername, String restPassword) {
         String trimmedCode = requireCode(code);
         if (servers.findByCode(trimmedCode).isPresent()) {
             throw new ConflictException("A GIS server with this code already exists.");
         }
         GisServer server = new GisServer();
-        applyServer(server, trimmedCode, name, wmsUrl, wfsUrl, restUrl, workspaceDefault, enabled, defaultServer);
+        applyServer(server, trimmedCode, name, wmsUrl, wfsUrl, restUrl, workspaceDefault, enabled, defaultServer,
+                restUsername, restPassword);
         GisServer saved = servers.save(server);
         audit.record("CREATE", "GisServer", saved.getId(), "GIS server " + saved.getCode() + " created", Map.of());
         return saved;
@@ -69,13 +98,14 @@ public class MapCatalogService {
 
     @Transactional
     public GisServer updateServer(Long id, String code, String name, String wmsUrl, String wfsUrl, String restUrl,
-            String workspaceDefault, Boolean enabled, Boolean defaultServer) {
+            String workspaceDefault, Boolean enabled, Boolean defaultServer, String restUsername, String restPassword) {
         GisServer server = getServer(id);
         String trimmedCode = requireCode(code);
         servers.findByCode(trimmedCode).filter(other -> !other.getId().equals(id)).ifPresent(other -> {
             throw new ConflictException("A GIS server with this code already exists.");
         });
-        applyServer(server, trimmedCode, name, wmsUrl, wfsUrl, restUrl, workspaceDefault, enabled, defaultServer);
+        applyServer(server, trimmedCode, name, wmsUrl, wfsUrl, restUrl, workspaceDefault, enabled, defaultServer,
+                restUsername, restPassword);
         GisServer saved = servers.save(server);
         audit.record("UPDATE", "GisServer", saved.getId(), "GIS server " + saved.getCode() + " updated", Map.of());
         return saved;
@@ -86,6 +116,9 @@ public class MapCatalogService {
         GisServer server = getServer(id);
         if (layers.countByGisServerId(id) > 0) {
             throw new ConflictException("Remove or reassign map layers before deleting this GIS server.");
+        }
+        if (layerGroups.countByGisServerId(id) > 0) {
+            throw new ConflictException("Remove layer groups before deleting this GIS server.");
         }
         servers.delete(server);
         audit.record("DELETE", "GisServer", id, "GIS server " + server.getCode() + " deleted", Map.of());
@@ -99,6 +132,11 @@ public class MapCatalogService {
     @Transactional(readOnly = true)
     public MapLayer getLayer(Long id) {
         return layers.findById(id).orElseThrow(() -> new NotFoundException("Map layer not found."));
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.Optional<MapLayer> findByServerAndWms(Long gisServerId, String wmsLayers) {
+        return layers.findByGisServerIdAndWmsLayers(gisServerId, wmsLayers);
     }
 
     @Transactional
@@ -140,6 +178,7 @@ public class MapCatalogService {
     @Transactional
     public void deleteLayer(Long id) {
         MapLayer layer = getLayer(id);
+        groupMembers.deleteByMapLayerId(id);
         layers.delete(layer);
         audit.record("DELETE", "MapLayer", id, "Map layer " + layer.getCode() + " deleted", Map.of());
     }
@@ -183,7 +222,7 @@ public class MapCatalogService {
     }
 
     private void applyServer(GisServer server, String code, String name, String wmsUrl, String wfsUrl, String restUrl,
-            String workspaceDefault, Boolean enabled, Boolean defaultServer) {
+            String workspaceDefault, Boolean enabled, Boolean defaultServer, String restUsername, String restPassword) {
         if (name == null || name.isBlank()) {
             throw new BadRequestException("Name is required.");
         }
@@ -202,12 +241,23 @@ public class MapCatalogService {
         server.setWfsUrl(blankToNull(wfsUrl));
         server.setRestUrl(blankToNull(restUrl));
         server.setWorkspaceDefault(blankToNull(workspaceDefault));
+        if (restUsername != null) {
+            server.setRestUsername(blankToNull(restUsername));
+        }
+        if (restPassword != null && !restPassword.isBlank()) {
+            server.setRestPasswordEnc(crypto.encrypt(restPassword));
+        }
         server.setEnabled(enabled == null || enabled);
         if (makeDefault) {
             server.setDefaultServer(true);
         } else if (defaultServer != null) {
             server.setDefaultServer(defaultServer);
         }
+    }
+
+    public static boolean restConfigured(GisServer server) {
+        return server.getRestUrl() != null && !server.getRestUrl().isBlank()
+                && server.getRestPasswordEnc() != null && !server.getRestPasswordEnc().isBlank();
     }
 
     private void applyLayer(MapLayer layer, Long gisServerId, String code, String label, String groupName,
@@ -272,6 +322,16 @@ public class MapCatalogService {
         return value == null || value.isBlank() ? null : value.trim();
     }
 
-    public record MapConfigSnapshot(GisServer server, List<MapLayer> layers, MapViewDefaults view) {
+    public record GroupMemberConfig(Long id, String code, String label, String wmsLayers, int sortOrder,
+            String styleName, boolean defaultVisible, BigDecimal defaultOpacity, boolean transparent, boolean baseLayer,
+            Integer minZoom, Integer maxZoom) {
+    }
+
+    public record GroupConfig(Long id, String code, String label, String wmsLayers, int sortOrder,
+            boolean defaultVisible, List<GroupMemberConfig> members) {
+    }
+
+    public record MapConfigSnapshot(GisServer server, List<MapLayer> layers, MapViewDefaults view,
+            List<GroupConfig> groups) {
     }
 }

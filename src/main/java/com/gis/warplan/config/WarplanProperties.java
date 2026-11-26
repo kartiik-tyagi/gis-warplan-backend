@@ -20,6 +20,7 @@ public class WarplanProperties {
     private final Jwt jwt = new Jwt();
     private final Icons icons = new Icons();
     private final Attachments attachments = new Attachments();
+    private final Publish publish = new Publish();
 
     public String getApplicationName() {
         return applicationName;
@@ -67,6 +68,10 @@ public class WarplanProperties {
 
     public Attachments getAttachments() {
         return attachments;
+    }
+
+    public Publish getPublish() {
+        return publish;
     }
 
     public static class Db {
@@ -123,6 +128,45 @@ public class WarplanProperties {
 
         public void setRoot(String root) {
             this.root = root == null || root.isBlank() ? "images/scenario-attachments" : root;
+        }
+    }
+
+    public static class Publish {
+        private String stagingRoot = "publish-staging";
+        private int maxItemsPerJob = 100;
+        private long maxFileBytes = 100L * 1024 * 1024;
+        private int workerConcurrency = 3;
+
+        public String getStagingRoot() {
+            return stagingRoot;
+        }
+
+        public void setStagingRoot(String stagingRoot) {
+            this.stagingRoot = stagingRoot == null || stagingRoot.isBlank() ? "publish-staging" : stagingRoot;
+        }
+
+        public int getMaxItemsPerJob() {
+            return maxItemsPerJob;
+        }
+
+        public void setMaxItemsPerJob(int maxItemsPerJob) {
+            this.maxItemsPerJob = maxItemsPerJob;
+        }
+
+        public long getMaxFileBytes() {
+            return maxFileBytes;
+        }
+
+        public void setMaxFileBytes(long maxFileBytes) {
+            this.maxFileBytes = maxFileBytes;
+        }
+
+        public int getWorkerConcurrency() {
+            return workerConcurrency;
+        }
+
+        public void setWorkerConcurrency(int workerConcurrency) {
+            this.workerConcurrency = workerConcurrency;
         }
     }
 }

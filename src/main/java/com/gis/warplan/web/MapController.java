@@ -41,11 +41,14 @@ public class MapController {
     private final MapCatalogService catalog;
     private final MapElevationService elevation;
     private final AccessService access;
+    private final com.gis.warplan.service.GeoServerConnectionService geoConnections;
 
-    public MapController(MapCatalogService catalog, MapElevationService elevation, AccessService access) {
+    public MapController(MapCatalogService catalog, MapElevationService elevation, AccessService access,
+            com.gis.warplan.service.GeoServerConnectionService geoConnections) {
         this.catalog = catalog;
         this.elevation = elevation;
         this.access = access;
+        this.geoConnections = geoConnections;
     }
 
     @GetMapping("/config")
@@ -64,7 +67,8 @@ public class MapController {
     public ResponseEntity<GisServerResponse> createServer(@Valid @RequestBody GisServerRequest request) {
         access.requireFunctionality(FunctionalityCodes.MANAGE_MAP);
         GisServer server = catalog.createServer(request.code(), request.name(), request.wmsUrl(), request.wfsUrl(),
-                request.restUrl(), request.workspaceDefault(), request.enabled(), request.defaultServer());
+                request.restUrl(), request.workspaceDefault(), request.enabled(), request.defaultServer(),
+                request.restUsername(), request.restPassword());
         return ResponseEntity.status(HttpStatus.CREATED).body(GisServerResponse.of(server));
     }
 
@@ -73,7 +77,13 @@ public class MapController {
         access.requireFunctionality(FunctionalityCodes.MANAGE_MAP);
         return GisServerResponse.of(catalog.updateServer(id, request.code(), request.name(), request.wmsUrl(),
                 request.wfsUrl(), request.restUrl(), request.workspaceDefault(), request.enabled(),
-                request.defaultServer()));
+                request.defaultServer(), request.restUsername(), request.restPassword()));
+    }
+
+    @PostMapping("/servers/{id}/test-connection")
+    public java.util.Map<String, Object> testConnection(@PathVariable Long id) {
+        access.requireFunctionality(FunctionalityCodes.MANAGE_MAP);
+        return geoConnections.testConnection(id);
     }
 
     @DeleteMapping("/servers/{id}")
@@ -144,7 +154,9 @@ public class MapController {
             @Size(max = 500) String restUrl,
             @Size(max = 120) String workspaceDefault,
             Boolean enabled,
-            Boolean defaultServer) {
+            Boolean defaultServer,
+            @Size(max = 120) String restUsername,
+            @Size(max = 500) String restPassword) {
     }
 
     public record MapLayerRequest(
@@ -183,12 +195,34 @@ public class MapController {
     public record ElevationResponse(Double meters, String kind) {
     }
 
-    public record MapConfigResponse(GisServerPublic server, List<MapLayerResponse> layers, MapViewDefaultsResponse view) {
+    public record GroupMemberResponse(Long id, String code, String label, String wmsLayers, int sortOrder,
+            String styleName, boolean defaultVisible, BigDecimal defaultOpacity, boolean transparent, boolean baseLayer,
+            Integer minZoom, Integer maxZoom) {
+        static GroupMemberResponse of(MapCatalogService.GroupMemberConfig member) {
+            return new GroupMemberResponse(member.id(), member.code(), member.label(), member.wmsLayers(),
+                    member.sortOrder(), member.styleName(), member.defaultVisible(), member.defaultOpacity(),
+                    member.transparent(), member.baseLayer(), member.minZoom(), member.maxZoom());
+        }
+    }
+
+    public record GroupResponse(Long id, String code, String label, String wmsLayers, int sortOrder,
+            boolean defaultVisible, List<GroupMemberResponse> members) {
+        static GroupResponse of(MapCatalogService.GroupConfig group) {
+            return new GroupResponse(group.id(), group.code(), group.label(), group.wmsLayers(), group.sortOrder(),
+                    group.defaultVisible(),
+                    group.members().stream().map(GroupMemberResponse::of).toList());
+        }
+    }
+
+    public record MapConfigResponse(GisServerPublic server, List<MapLayerResponse> layers, MapViewDefaultsResponse view,
+            List<GroupResponse> groups) {
         static MapConfigResponse of(MapConfigSnapshot snapshot) {
             return new MapConfigResponse(
                     snapshot.server() == null ? null : GisServerPublic.of(snapshot.server()),
                     snapshot.layers().stream().map(MapLayerResponse::of).toList(),
-                    snapshot.view() == null ? null : MapViewDefaultsResponse.of(snapshot.view()));
+                    snapshot.view() == null ? null : MapViewDefaultsResponse.of(snapshot.view()),
+                    snapshot.groups() == null ? List.of()
+                            : snapshot.groups().stream().map(GroupResponse::of).toList());
         }
     }
 
@@ -201,12 +235,13 @@ public class MapController {
     }
 
     public record GisServerResponse(Long id, String code, String name, String wmsUrl, String wfsUrl, String restUrl,
-            String restUsername, String workspaceDefault, boolean enabled, boolean defaultServer, Instant createdAt,
-            Instant updatedAt) {
+            String restUsername, boolean restConfigured, String workspaceDefault, boolean enabled, boolean defaultServer,
+            Instant createdAt, Instant updatedAt) {
         static GisServerResponse of(GisServer server) {
             return new GisServerResponse(server.getId(), server.getCode(), server.getName(), server.getWmsUrl(),
-                    server.getWfsUrl(), server.getRestUrl(), server.getRestUsername(), server.getWorkspaceDefault(),
-                    server.isEnabled(), server.isDefaultServer(), server.getCreatedAt(), server.getUpdatedAt());
+                    server.getWfsUrl(), server.getRestUrl(), server.getRestUsername(),
+                    MapCatalogService.restConfigured(server), server.getWorkspaceDefault(), server.isEnabled(),
+                    server.isDefaultServer(), server.getCreatedAt(), server.getUpdatedAt());
         }
     }
 

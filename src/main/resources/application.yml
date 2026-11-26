@@ -5,8 +5,8 @@ spring:
     name: gis-warplan-backend
   servlet:
     multipart:
-      max-file-size: 50MB
-      max-request-size: 52MB
+      max-file-size: 100MB
+      max-request-size: 520MB
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/gis_warplan}
     username: ${DB_USER:postgres}
@@ -52,6 +52,11 @@ warplan:
     root: images/icon
   attachments:
     root: images/scenario-attachments
+  publish:
+    staging-root: publish-staging
+    max-items-per-job: 100
+    max-file-bytes: 104857600
+    worker-concurrency: 3
 
 logging:
   config: config/gis-warplan.xml

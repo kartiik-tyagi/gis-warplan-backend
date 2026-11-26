@@ -11,9 +11,13 @@ public interface MapLayerRepository extends JpaRepository<MapLayer, Long> {
 
     Optional<MapLayer> findByCode(String code);
 
+    Optional<MapLayer> findByGisServerIdAndWmsLayers(Long gisServerId, String wmsLayers);
+
     List<MapLayer> findByActiveTrueOrderBySortOrderAscIdAsc();
 
     List<MapLayer> findAllByOrderBySortOrderAscIdAsc();
+
+    List<MapLayer> findByGisServerIdOrderBySortOrderAscIdAsc(Long gisServerId);
 
     long countByGisServerId(Long gisServerId);
 }

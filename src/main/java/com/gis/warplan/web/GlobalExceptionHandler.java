@@ -59,7 +59,19 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiError> tooLarge(MaxUploadSizeExceededException exception) {
         log.warn("Request rejected code=BAD_REQUEST reason=upload_size");
-        return respond(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "The file is larger than 50 MB.", Map.of());
+        return respond(HttpStatus.BAD_REQUEST, "BAD_REQUEST", "The file is larger than the allowed upload size.", Map.of());
+    }
+
+    @ExceptionHandler(com.gis.warplan.service.geoserver.GeoServerException.class)
+    public ResponseEntity<ApiError> geoServer(com.gis.warplan.service.geoserver.GeoServerException exception) {
+        HttpStatus status = HttpStatus.BAD_GATEWAY;
+        if (exception.getStatus() == 400) {
+            status = HttpStatus.BAD_REQUEST;
+        } else if (exception.isUnauthorized()) {
+            status = HttpStatus.BAD_GATEWAY;
+        }
+        log.warn("GeoServer call failed status={} message={}", exception.getStatus(), exception.getMessage());
+        return respond(status, "GEOSERVER", exception.getMessage(), Map.of());
     }
 
     @ExceptionHandler({
