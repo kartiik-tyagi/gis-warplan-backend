@@ -36,6 +36,14 @@ public class AssetCatalogRunner implements ApplicationRunner {
         try {
             Map<String, String> labels = settings.flattenLabels();
             assets.importLooseIcons(labels);
+            assets.labelIfBlank("moon-new.svg", "New moon");
+            assets.labelIfBlank("moon-waxing-crescent.svg", "Waxing crescent");
+            assets.labelIfBlank("moon-first-quarter.svg", "First quarter");
+            assets.labelIfBlank("moon-waxing-gibbous.svg", "Waxing gibbous");
+            assets.labelIfBlank("moon-full.svg", "Full moon");
+            assets.labelIfBlank("moon-waning-gibbous.svg", "Waning gibbous");
+            assets.labelIfBlank("moon-last-quarter.svg", "Last quarter");
+            assets.labelIfBlank("moon-waning-crescent.svg", "Waning crescent");
             assets.ensureSeedSlot(ApplicationSlot.LOGO, "/seed/application/logo.svg", "logo.svg");
             assets.ensureSeedSlot(ApplicationSlot.FAVICON, "/seed/application/favicon.svg", "favicon.svg");
             assets.ensureSeedSlot(ApplicationSlot.LOGIN_BACKGROUND, "/seed/application/login-background.svg", "login-background.svg");

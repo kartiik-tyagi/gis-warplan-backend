@@ -16,7 +16,7 @@ Do not invent substitute fields (`description` / `configJson` / `status` on scen
 | standard_orbat | Working | id, side_id, orbat_json, metadata, version, created_at, updated_at, updated_by |
 | playing_orbat | Working | id, game_id, scenario_id (denormalized from game), side_id, orbat_json, metadata (draft\|finalized), version, created_at, updated_at, updated_by |
 | scenario | Master | id, name, general_idea (text HTML), opening_narrative (text HTML), special_idea (text HTML), active, attached_file (display name), attachment_asset_id (asset row; bytes live in the asset store), created_at, updated_at, created_by |
-| moon_phase | Master | code (primary key, stored on game.moonphases), label, sort_order, icon_svg (text). Seeded once; an existing row is not overwritten. |
+| moon_phase | Master | code (primary key, stored on game.moonphases), label, sort_order, icon (storage key in the icon store). Seeded once. A blank icon is filled; a chosen icon is left alone. |
 | game | Working | id, scenario_id, name, date_time, sunrise, sunset, moonphases (moon_phase.code, empty when none), description (text HTML), active, metadata, created_at, updated_at |
 | app_user | Working | id, name, password_hash, role_ids, administered_side_id, active, theme_id, standard_orbat_id, standard_node_id, playing_orbat_id, playing_node_id, last_login_at, created_at, updated_at |
 | user_session | Audit | id, user_id, login_at, logout_at, success, failure_reason, ip_address, user_agent, location_text, session_token_id, created_at (+ JWT expires_at / revoked_at for revoke) |

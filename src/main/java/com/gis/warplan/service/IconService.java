@@ -9,6 +9,7 @@ import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -55,6 +56,9 @@ public class IconService {
             "square.svg", svg("<rect x=\"2\" y=\"2\" width=\"12\" height=\"12\" fill=\"var(--wp-primary)\" data-wp-fill=\"primary\"/>"),
             "triangle.svg", svg("<polygon points=\"8,2 14,14 2,14\" fill=\"var(--wp-primary)\" data-wp-fill=\"primary\"/>"));
 
+    /** Round moons. A cut phase draws only the lit part. The new moon is the only solid dark disc. */
+    private static final Map<String, String> MOON_ICONS = moonIcons();
+
     private final AssetManagementService assets;
     private final AssetService store;
     private final String fallbackRoot;
@@ -100,25 +104,46 @@ public class IconService {
             log.warn("icon.seed_skipped reason={}", exception.getMessage());
             return;
         }
-        DEFAULT_ICONS.forEach((name, content) -> {
-            Path target = root.resolve(name);
-            try {
-                if (Files.notExists(target)) {
-                    Files.writeString(target, content, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
-                    log.info("Seeded icon {}", name);
-                    return;
-                }
-                String legacy = LEGACY_ICONS.get(name);
-                if (legacy != null && normalize(Files.readString(target)).equals(normalize(legacy))) {
-                    Files.writeString(target, content, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
-                    log.info("Updated seeded icon {} so it follows the active theme", name);
-                }
-            } catch (FileAlreadyExistsException ignored) {
-                // created concurrently
-            } catch (IOException exception) {
-                log.warn("icon.seed_failed name={} reason={}", name, exception.getMessage());
+        DEFAULT_ICONS.forEach((name, content) -> writeSeedIcon(root, name, content));
+        MOON_ICONS.forEach((name, content) -> writeSeedIcon(root, name, content));
+    }
+
+    private void writeSeedIcon(Path root, String name, String content) {
+        Path target = root.resolve(name);
+        try {
+            if (Files.notExists(target)) {
+                Files.writeString(target, content, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
+                log.info("Seeded icon {}", name);
+                return;
             }
-        });
+            String legacy = LEGACY_ICONS.get(name);
+            if (legacy != null && normalize(Files.readString(target)).equals(normalize(legacy))) {
+                Files.writeString(target, content, StandardCharsets.UTF_8, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+                log.info("Updated seeded icon {} so it follows the active theme", name);
+            }
+        } catch (FileAlreadyExistsException ignored) {
+            // created concurrently
+        } catch (IOException exception) {
+            log.warn("icon.seed_failed name={} reason={}", name, exception.getMessage());
+        }
+    }
+
+    private static Map<String, String> moonIcons() {
+        String lit = "fill=\"var(--wp-textPrimary)\" data-wp-fill=\"textPrimary\"";
+        Map<String, String> icons = new LinkedHashMap<>();
+        icons.put("moon-new.svg", moon("<circle cx=\"8\" cy=\"8\" r=\"7\" fill=\"var(--wp-backgroundDefault)\" data-wp-fill=\"backgroundDefault\" stroke=\"var(--wp-textPrimary)\" data-wp-stroke=\"textPrimary\" stroke-width=\"1.4\"/>"));
+        icons.put("moon-waxing-crescent.svg", moon("<path " + lit + " d=\"M11 1.6A7 7 0 0 1 11 14.4A4.2 7 0 0 0 11 1.6Z\"/>"));
+        icons.put("moon-first-quarter.svg", moon("<path " + lit + " d=\"M8 1A7 7 0 0 1 8 15Z\"/>"));
+        icons.put("moon-waxing-gibbous.svg", moon("<path " + lit + " d=\"M8 1A7 7 0 0 1 8 15A4 7 0 0 1 8 1Z\"/>"));
+        icons.put("moon-full.svg", moon("<circle cx=\"8\" cy=\"8\" r=\"7\" " + lit + "/>"));
+        icons.put("moon-waning-gibbous.svg", moon("<path " + lit + " d=\"M8 1A7 7 0 0 0 8 15A4 7 0 0 0 8 1Z\"/>"));
+        icons.put("moon-last-quarter.svg", moon("<path " + lit + " d=\"M8 1A7 7 0 0 0 8 15Z\"/>"));
+        icons.put("moon-waning-crescent.svg", moon("<path " + lit + " d=\"M5 1.6A7 7 0 0 0 5 14.4A4.2 7 0 0 1 5 1.6Z\"/>"));
+        return icons;
+    }
+
+    private static String moon(String body) {
+        return "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\">" + body + "</svg>\n";
     }
 
     public IconNode tree() {

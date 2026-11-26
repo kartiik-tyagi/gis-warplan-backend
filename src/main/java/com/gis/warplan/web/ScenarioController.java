@@ -217,7 +217,7 @@ public class ScenarioController {
 
     public record MoonPhaseOption(String code, String label, String icon) {
         static MoonPhaseOption of(MoonPhase phase) {
-            return new MoonPhaseOption(phase.getCode(), phase.getLabel(), phase.getIconSvg());
+            return new MoonPhaseOption(phase.getCode(), phase.getLabel(), phase.getIcon());
         }
     }
 }

@@ -206,6 +206,18 @@ public class AssetService {
         return "/api/v1/assets/application/" + slot.key() + "/content";
     }
 
+    /** Sets a public label only when the file is already registered and has no label yet. */
+    @Transactional
+    public void labelIfBlank(String storageKey, String label) {
+        String key = requireKey(storageKey);
+        Asset asset = assets.findByStorageKey(key).orElse(null);
+        if (asset == null || (asset.getLabel() != null && !asset.getLabel().isBlank())) {
+            return;
+        }
+        asset.setLabel(requireLabel(label));
+        assets.save(asset);
+    }
+
     @Transactional
     public Asset setLabelByKey(String storageKey, String label) {
         String key = requireKey(storageKey);

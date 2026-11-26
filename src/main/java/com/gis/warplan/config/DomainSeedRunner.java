@@ -134,11 +134,18 @@ public class DomainSeedRunner implements ApplicationRunner {
 
     private void seedMoonPhases() {
         for (var phase : MoonPhaseSeed.rows()) {
-            if (moonPhases.existsById(phase.getCode())) {
+            MoonPhase existing = moonPhases.findById(phase.getCode()).orElse(null);
+            if (existing == null) {
+                moonPhases.save(phase);
+                log.info("Seeded moon phase {}", phase.getCode());
                 continue;
             }
-            moonPhases.save(phase);
-            log.info("Seeded moon phase {}", phase.getCode());
+            String icon = existing.getIcon();
+            if (icon == null || icon.isBlank() || icon.startsWith("<")) {
+                existing.setIcon(phase.getIcon());
+                moonPhases.save(existing);
+                log.info("Pointed moon phase {} at icon {}", phase.getCode(), phase.getIcon());
+            }
         }
     }
 

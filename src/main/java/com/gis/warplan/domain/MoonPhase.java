@@ -24,7 +24,7 @@ public class MoonPhase {
     @Column(nullable = false)
     private int sortOrder;
 
-    /** Small SVG. Uses currentColor so it follows the bar colour. */
-    @Column(nullable = false, columnDefinition = "text")
-    private String iconSvg;
+    /** Storage key of an icon in the icon store, such as moon-full.svg. */
+    @Column(length = 240)
+    private String icon;
 }
