@@ -111,6 +111,14 @@ public class IconService {
     private void writeSeedIcon(Path root, String name, String content) {
         Path target = root.resolve(name);
         try {
+            if (name.startsWith("moon-")) {
+                String current = Files.isRegularFile(target) ? Files.readString(target) : "";
+                if (!current.contains("data-moon=\"2\"")) {
+                    Files.writeString(target, content, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE);
+                    log.info("Seeded icon {}", name);
+                }
+                return;
+            }
             if (Files.notExists(target)) {
                 Files.writeString(target, content, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
                 log.info("Seeded icon {}", name);
@@ -131,19 +139,19 @@ public class IconService {
     private static Map<String, String> moonIcons() {
         String lit = "fill=\"var(--wp-textPrimary)\" data-wp-fill=\"textPrimary\"";
         Map<String, String> icons = new LinkedHashMap<>();
-        icons.put("moon-new.svg", moon("<circle cx=\"8\" cy=\"8\" r=\"7\" fill=\"var(--wp-backgroundDefault)\" data-wp-fill=\"backgroundDefault\" stroke=\"var(--wp-textPrimary)\" data-wp-stroke=\"textPrimary\" stroke-width=\"1.4\"/>"));
-        icons.put("moon-waxing-crescent.svg", moon("<path " + lit + " d=\"M11 1.6A7 7 0 0 1 11 14.4A4.2 7 0 0 0 11 1.6Z\"/>"));
-        icons.put("moon-first-quarter.svg", moon("<path " + lit + " d=\"M8 1A7 7 0 0 1 8 15Z\"/>"));
-        icons.put("moon-waxing-gibbous.svg", moon("<path " + lit + " d=\"M8 1A7 7 0 0 1 8 15A4 7 0 0 1 8 1Z\"/>"));
-        icons.put("moon-full.svg", moon("<circle cx=\"8\" cy=\"8\" r=\"7\" " + lit + "/>"));
-        icons.put("moon-waning-gibbous.svg", moon("<path " + lit + " d=\"M8 1A7 7 0 0 0 8 15A4 7 0 0 0 8 1Z\"/>"));
-        icons.put("moon-last-quarter.svg", moon("<path " + lit + " d=\"M8 1A7 7 0 0 0 8 15Z\"/>"));
-        icons.put("moon-waning-crescent.svg", moon("<path " + lit + " d=\"M5 1.6A7 7 0 0 0 5 14.4A4.2 7 0 0 1 5 1.6Z\"/>"));
+        icons.put("moon-new.svg", moon("<circle cx=\"12\" cy=\"12\" r=\"10\" fill=\"var(--wp-backgroundDefault)\" data-wp-fill=\"backgroundDefault\" stroke=\"var(--wp-textPrimary)\" data-wp-stroke=\"textPrimary\" stroke-width=\"1.6\"/>"));
+        icons.put("moon-waxing-crescent.svg", moon("<path " + lit + " d=\"M14.5 3.2C20 6 22 9 22 12C22 15 20 18 14.5 20.8C17.2 18 18.2 15 18.2 12C18.2 9 17.2 6 14.5 3.2Z\"/>"));
+        icons.put("moon-first-quarter.svg", moon("<path " + lit + " d=\"M12 2A10 10 0 0 1 12 22Z\"/>"));
+        icons.put("moon-waxing-gibbous.svg", moon("<path " + lit + " d=\"M12 2A10 10 0 0 1 12 22C6 18 5 15 5 12C5 9 6 6 12 2Z\"/>"));
+        icons.put("moon-full.svg", moon("<circle cx=\"12\" cy=\"12\" r=\"10\" " + lit + "/>"));
+        icons.put("moon-waning-gibbous.svg", moon("<path " + lit + " d=\"M12 2A10 10 0 0 0 12 22C18 18 19 15 19 12C19 9 18 6 12 2Z\"/>"));
+        icons.put("moon-last-quarter.svg", moon("<path " + lit + " d=\"M12 2A10 10 0 0 0 12 22Z\"/>"));
+        icons.put("moon-waning-crescent.svg", moon("<path " + lit + " d=\"M9.5 3.2C4 6 2 9 2 12C2 15 4 18 9.5 20.8C6.8 18 5.8 15 5.8 12C5.8 9 6.8 6 9.5 3.2Z\"/>"));
         return icons;
     }
 
     private static String moon(String body) {
-        return "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"16\" height=\"16\" viewBox=\"0 0 16 16\">" + body + "</svg>\n";
+        return "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" data-moon=\"2\">" + body + "</svg>\n";
     }
 
     public IconNode tree() {

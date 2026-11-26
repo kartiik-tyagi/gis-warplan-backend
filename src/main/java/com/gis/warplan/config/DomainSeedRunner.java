@@ -19,6 +19,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gis.warplan.domain.AppUser;
 import com.gis.warplan.domain.Functionality;
+import com.gis.warplan.domain.MoonPhase;
 import com.gis.warplan.domain.FunctionalityCodes;
 import com.gis.warplan.domain.RoleCodes;
 import com.gis.warplan.domain.RoleEntity;
