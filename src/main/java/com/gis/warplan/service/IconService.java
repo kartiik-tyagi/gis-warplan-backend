@@ -135,7 +135,7 @@ public class IconService {
             return;
         }
         node.children().sort(Comparator
-                .comparing((IconNode child) -> !"directory".equals(child.kind()))
+                .comparing((IconNode child) -> !"directory".equals(child.type()))
                 .thenComparing(IconNode::name, String.CASE_INSENSITIVE_ORDER));
         for (IconNode child : node.children()) {
             sortChildren(child);

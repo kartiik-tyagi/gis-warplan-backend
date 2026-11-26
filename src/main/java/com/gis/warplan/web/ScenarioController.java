@@ -209,16 +209,15 @@ public class ScenarioController {
             Instant createdAt, Instant updatedAt) {
 
         static GameResponse of(Game game) {
-            MoonPhase phase = game.getMoonphases();
             return new GameResponse(game.getId(), game.getScenarioId(), game.getName(), game.getDateTime(),
-                    game.getSunrise(), game.getSunset(), phase == null ? null : phase.name(), game.getDescription(),
+                    game.getSunrise(), game.getSunset(), game.getMoonphases(), game.getDescription(),
                     game.isActive(), game.getMetadata(), game.getCreatedAt(), game.getUpdatedAt());
         }
     }
 
-    public record MoonPhaseOption(String code, String label) {
+    public record MoonPhaseOption(String code, String label, String icon) {
         static MoonPhaseOption of(MoonPhase phase) {
-            return new MoonPhaseOption(phase.name(), phase.label());
+            return new MoonPhaseOption(phase.getCode(), phase.getLabel(), phase.getIconSvg());
         }
     }
 }

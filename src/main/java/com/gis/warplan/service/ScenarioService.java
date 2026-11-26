@@ -22,6 +22,7 @@ import com.gis.warplan.domain.Side;
 import com.gis.warplan.repository.AllianceMemberRepository;
 import com.gis.warplan.repository.AppUserRepository;
 import com.gis.warplan.repository.GameRepository;
+import com.gis.warplan.repository.MoonPhaseRepository;
 import com.gis.warplan.repository.PlayingOrbatRepository;
 import com.gis.warplan.repository.ScenarioRepository;
 import com.gis.warplan.repository.SideRepository;
@@ -40,6 +41,7 @@ public class ScenarioService {
 
     private final ScenarioRepository scenarios;
     private final GameRepository games;
+    private final MoonPhaseRepository moonPhases;
     private final PlayingOrbatRepository playingOrbats;
     private final AppUserRepository users;
     private final SideRepository sides;
@@ -49,12 +51,14 @@ public class ScenarioService {
     private final ScenarioAttachmentService attachments;
     private final ActivationService activation;
 
-    public ScenarioService(ScenarioRepository scenarios, GameRepository games, PlayingOrbatRepository playingOrbats,
+    public ScenarioService(ScenarioRepository scenarios, GameRepository games, MoonPhaseRepository moonPhases,
+            PlayingOrbatRepository playingOrbats,
             AppUserRepository users, SideRepository sides, AllianceMemberRepository allianceMembers,
             AccessService access, AuditService audit, ScenarioAttachmentService attachments,
             ActivationService activation) {
         this.scenarios = scenarios;
         this.games = games;
+        this.moonPhases = moonPhases;
         this.playingOrbats = playingOrbats;
         this.users = users;
         this.sides = sides;
@@ -170,10 +174,10 @@ public class ScenarioService {
 
     // ---- games
 
+    /** Catalogue for the command bar and the game form. Any signed-in user may read it. */
     @Transactional(readOnly = true)
     public List<MoonPhase> moonPhases() {
-        access.requireFunctionality(FunctionalityCodes.MANAGE_GAME);
-        return List.of(MoonPhase.values());
+        return moonPhases.findAllByOrderBySortOrderAsc();
     }
 
     @Transactional(readOnly = true)
@@ -324,22 +328,26 @@ public class ScenarioService {
         scenario.setSpecialIdea(blankToNull(specialIdea));
     }
 
-    private static void applyGameFields(Game game, String name, LocalDateTime dateTime, LocalTime sunrise,
+    private void applyGameFields(Game game, String name, LocalDateTime dateTime, LocalTime sunrise,
             LocalTime sunset, String moonphases, String description, Map<String, Object> metadata) {
         game.setName(name.trim());
         game.setDateTime(dateTime);
         game.setSunrise(sunrise);
         game.setSunset(sunset);
-        game.setMoonphases(moonPhase(moonphases));
+        game.setMoonphases(moonPhaseCode(moonphases));
         game.setDescription(blankToNull(description));
         game.setMetadata(metadata);
     }
 
-    private static MoonPhase moonPhase(String raw) {
+    private String moonPhaseCode(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
         }
-        return MoonPhase.parse(raw).orElseThrow(() -> new BadRequestException("Choose a moon phase from the list."));
+        String text = raw.trim();
+        return moonPhases.findByCodeIgnoreCase(text)
+                .or(() -> moonPhases.findByLabelIgnoreCase(text))
+                .map(MoonPhase::getCode)
+                .orElseThrow(() -> new BadRequestException("Choose a moon phase from the list."));
     }
 
     private static String blankToNull(String value) {

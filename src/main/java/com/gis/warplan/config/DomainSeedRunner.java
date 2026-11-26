@@ -25,6 +25,7 @@ import com.gis.warplan.domain.RoleEntity;
 import com.gis.warplan.domain.Theme;
 import com.gis.warplan.repository.AppUserRepository;
 import com.gis.warplan.repository.FunctionalityRepository;
+import com.gis.warplan.repository.MoonPhaseRepository;
 import com.gis.warplan.repository.RoleRepository;
 import com.gis.warplan.repository.SideRepository;
 import com.gis.warplan.repository.ThemeRepository;
@@ -86,12 +87,14 @@ public class DomainSeedRunner implements ApplicationRunner {
     private final PasswordEncoder passwordEncoder;
     private final IconService icons;
     private final MapCatalogSeedService mapCatalogSeed;
+    private final MoonPhaseRepository moonPhases;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transaction;
 
     public DomainSeedRunner(ThemeRepository themes, FunctionalityRepository functionalities, RoleRepository roles,
             AppUserRepository users, SideRepository sides, PasswordEncoder passwordEncoder, IconService icons,
-            MapCatalogSeedService mapCatalogSeed, ObjectMapper objectMapper, TransactionTemplate transaction) {
+            MapCatalogSeedService mapCatalogSeed, MoonPhaseRepository moonPhases, ObjectMapper objectMapper,
+            TransactionTemplate transaction) {
         this.themes = themes;
         this.functionalities = functionalities;
         this.roles = roles;
@@ -100,6 +103,7 @@ public class DomainSeedRunner implements ApplicationRunner {
         this.passwordEncoder = passwordEncoder;
         this.icons = icons;
         this.mapCatalogSeed = mapCatalogSeed;
+        this.moonPhases = moonPhases;
         this.objectMapper = objectMapper;
         this.transaction = transaction;
     }
@@ -124,7 +128,18 @@ public class DomainSeedRunner implements ApplicationRunner {
         seedRole(RoleCodes.PLANNER, "Planner",
                 ids(functionalityIds, FunctionalityCodes.MAP_VIEW, FunctionalityCodes.CHOOSE_THEME), false);
         seedApex(administrator);
+        seedMoonPhases();
         mapCatalogSeed.seedIfEmpty();
+    }
+
+    private void seedMoonPhases() {
+        for (var phase : MoonPhaseSeed.rows()) {
+            if (moonPhases.existsById(phase.getCode())) {
+                continue;
+            }
+            moonPhases.save(phase);
+            log.info("Seeded moon phase {}", phase.getCode());
+        }
     }
 
     private void seedThemes() {

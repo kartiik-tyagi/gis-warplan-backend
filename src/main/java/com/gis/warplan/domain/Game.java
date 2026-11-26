@@ -34,10 +34,9 @@ public class Game {
 
     private LocalTime sunset;
 
-    /** One value from {@link MoonPhase}. Older free-text notes that are not a phase are read as empty. */
-    @Convert(converter = MoonPhaseConverter.class)
-    @Column(length = 4000)
-    private MoonPhase moonphases;
+    /** Code of a {@link MoonPhase} row. Empty when the game has no phase. */
+    @Column(length = 40)
+    private String moonphases;
 
     /** Sanitized HTML rich text description. */
     @Column(columnDefinition = "text")
