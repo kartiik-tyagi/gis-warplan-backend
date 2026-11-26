@@ -39,11 +39,12 @@ public class SideService {
     private final AccessService access;
     private final AuditService audit;
     private final StandardOrbatService standardOrbatService;
+    private final EnumCatalogService enums;
 
     public SideService(SideRepository sides, StandardOrbatRepository standardOrbats,
             PlayingOrbatRepository playingOrbats, AllianceMemberRepository allianceMembers, AppUserRepository users,
             ThemeAllotmentService allotment, IconService icons, AccessService access, AuditService audit,
-            StandardOrbatService standardOrbatService) {
+            StandardOrbatService standardOrbatService, EnumCatalogService enums) {
         this.sides = sides;
         this.standardOrbats = standardOrbats;
         this.playingOrbats = playingOrbats;
@@ -54,6 +55,7 @@ public class SideService {
         this.access = access;
         this.audit = audit;
         this.standardOrbatService = standardOrbatService;
+        this.enums = enums;
     }
 
     @Transactional(readOnly = true)
@@ -105,6 +107,9 @@ public class SideService {
         Side side = get(id);
         if (access.isSideScoped()) {
             throw new ForbiddenException("A side administrator cannot delete sides.");
+        }
+        if (enums.sideInUse(id)) {
+            throw new ConflictException("The side is in use by enum choices.");
         }
         if (!playingOrbats.findBySideId(id).isEmpty() || !allianceMembers.findByMemberSideId(id).isEmpty()
                 || !users.findByAdministeredSideId(id).isEmpty()) {

@@ -198,9 +198,10 @@ public class MapLayerGroupService {
             order += 10;
         }
         replaceMembers(group, inputs);
+        MapLayerGroup stored = group;
         for (Long layerId : ordered) {
             layers.findById(layerId).ifPresent(layer -> {
-                layer.setGroupName(group.getLabel());
+                layer.setGroupName(stored.getLabel());
                 layers.save(layer);
             });
         }

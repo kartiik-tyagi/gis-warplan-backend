@@ -30,6 +30,7 @@ import com.gis.warplan.repository.MoonPhaseRepository;
 import com.gis.warplan.repository.RoleRepository;
 import com.gis.warplan.repository.SideRepository;
 import com.gis.warplan.repository.ThemeRepository;
+import com.gis.warplan.service.EnumCatalogService;
 import com.gis.warplan.service.IconService;
 import com.gis.warplan.service.MapCatalogSeedService;
 
@@ -68,6 +69,7 @@ public class DomainSeedRunner implements ApplicationRunner {
             Map.entry(FunctionalityCodes.MANAGE_THEMES, "Manage themes"),
             Map.entry(FunctionalityCodes.MANAGE_SIDES, "Manage sides"),
             Map.entry(FunctionalityCodes.MANAGE_NODE_TYPES, "Manage node types"),
+            Map.entry(FunctionalityCodes.MANAGE_ENUMS, "Manage enums"),
             Map.entry(FunctionalityCodes.MANAGE_ROLES, "Manage roles"),
             Map.entry(FunctionalityCodes.MANAGE_USERS, "Manage users"),
             Map.entry(FunctionalityCodes.MARK_AS_USER, "Mark as user"),
@@ -89,13 +91,14 @@ public class DomainSeedRunner implements ApplicationRunner {
     private final IconService icons;
     private final MapCatalogSeedService mapCatalogSeed;
     private final MoonPhaseRepository moonPhases;
+    private final EnumCatalogService enums;
     private final ObjectMapper objectMapper;
     private final TransactionTemplate transaction;
 
     public DomainSeedRunner(ThemeRepository themes, FunctionalityRepository functionalities, RoleRepository roles,
             AppUserRepository users, SideRepository sides, PasswordEncoder passwordEncoder, IconService icons,
-            MapCatalogSeedService mapCatalogSeed, MoonPhaseRepository moonPhases, ObjectMapper objectMapper,
-            TransactionTemplate transaction) {
+            MapCatalogSeedService mapCatalogSeed, MoonPhaseRepository moonPhases, EnumCatalogService enums,
+            ObjectMapper objectMapper, TransactionTemplate transaction) {
         this.themes = themes;
         this.functionalities = functionalities;
         this.roles = roles;
@@ -105,6 +108,7 @@ public class DomainSeedRunner implements ApplicationRunner {
         this.icons = icons;
         this.mapCatalogSeed = mapCatalogSeed;
         this.moonPhases = moonPhases;
+        this.enums = enums;
         this.objectMapper = objectMapper;
         this.transaction = transaction;
     }
@@ -130,6 +134,7 @@ public class DomainSeedRunner implements ApplicationRunner {
                 ids(functionalityIds, FunctionalityCodes.MAP_VIEW, FunctionalityCodes.CHOOSE_THEME), false);
         seedApex(administrator);
         seedMoonPhases();
+        enums.seedMissing();
         mapCatalogSeed.seedIfEmpty();
     }
 

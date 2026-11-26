@@ -13,6 +13,7 @@ public final class FunctionalityCodes {
     public static final String MANAGE_THEMES = "MANAGE_THEMES";
     public static final String MANAGE_SIDES = "MANAGE_SIDES";
     public static final String MANAGE_NODE_TYPES = "MANAGE_NODE_TYPES";
+    public static final String MANAGE_ENUMS = "MANAGE_ENUMS";
     public static final String MANAGE_ROLES = "MANAGE_ROLES";
     public static final String MANAGE_USERS = "MANAGE_USERS";
     public static final String MARK_AS_USER = "MARK_AS_USER";
@@ -31,6 +32,7 @@ public final class FunctionalityCodes {
             MANAGE_THEMES,
             MANAGE_SIDES,
             MANAGE_NODE_TYPES,
+            MANAGE_ENUMS,
             MANAGE_ROLES,
             MANAGE_USERS,
             MARK_AS_USER,
